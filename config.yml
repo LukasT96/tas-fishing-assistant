@@ -1,0 +1,1 @@
+# Include all configuration for models, RAG, and tools (if any). Examples include, but are not limited to model name, temperature, max token size, chunk size, vector DB name, embedding model, top_k for retrieval etc.
