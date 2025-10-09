@@ -1,1 +1,69 @@
-# Include all configuration for models, RAG, and tools (if any). Examples include, but are not limited to model name, temperature, max token size, chunk size, vector DB name, embedding model, top_k for retrieval etc.
+# Tasmania Fishing Chatbot Configuration
+
+# LLM Settings
+llm:
+  # Groq settings (llama models)
+  groq:
+    model: "llama-3.3-70b-versatile"
+    temperature: 0.3
+    max_tokens: 1024
+
+  # Google Germini settings
+  germini:
+    model: "germini-2.5-flash"
+    temperature: 0.3
+    max_tokens: 1024
+
+  # Default LLM
+  default_provider: "groq"
+
+
+# RAG Settings
+rag:
+  # Text chunking settings
+  chunk_size: 300     # Number of words per chunk
+  chunk_overlap: 50   # Overlap between chunks
+  top_k: 3            # Number of chunks to retrieve
+
+  # Embedding model settings
+  embedding:
+    model: "all-MiniLM-L6-v2"   # Sentence transformer model
+
+  # Vector database settings
+  vertor_db:
+    name: "tas_fishing_docs"    # ChromaDB collection name
+    type: "chromadb"
+
+  
+# Document Settings
+documents:
+  base_path: "./data"
+  sources:
+    - "fishing_reguation.txt"
+    - "species_guide.txt"
+    - "locations.txt"
+    - "bag_size_limits.txt"
+    - "license_info.txt"
+
+
+# Tool Settings
+tools:
+  # Weather API
+  weather_api:
+    enable: true
+    api_key_env: "WEATHER_API_KEY"
+    provider: "openweathermap"
+    base_url: "https://api.openweathermap.org/data/2.5"
+
+
+# UI Settings
+ui:
+  title: "Tasmania Fishing Information Assistant"
+  description: "Get information about fishing regulations, locations, and species in Tasmania"
+  theme: "soft"
+  examples:
+    - "What are the bag limits for brown trout?"
+    - "Is a 26cm rainbow trout legal to keep?"
+    - "Where can I fish for salmon in Tasmania?"
+    - "What fishing license do I need?"
+    - "What species can I catch at Great Lake?"
