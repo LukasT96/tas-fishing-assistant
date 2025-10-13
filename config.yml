@@ -30,7 +30,7 @@ rag:
     model: "all-MiniLM-L6-v2"   # Sentence transformer model
 
   # Vector database settings
-  vertor_db:
+  vector_db:
     name: "tas_fishing_docs"    # ChromaDB collection name
     type: "chromadb"
 
@@ -39,11 +39,9 @@ rag:
 documents:
   base_path: "./data"
   sources:
-    - "fishing_reguation.txt"
-    - "species_guide.txt"
-    - "locations.txt"
-    - "bag_size_limits.txt"
-    - "license_info.txt"
+    - "Fishing_licences.txt"
+    - "General_Guide.txt"
+    - "Fishing_seasons.txt"
 
 
 # Tool Settings
@@ -54,7 +52,9 @@ tools:
     api_key_env: "WEATHER_API_KEY"
     provider: "openweathermap"
     base_url: "https://api.openweathermap.org/data/2.5"
-
+# Legal size check tool
+legal_size_check:
+  enabled: true
 
 # UI Settings
 ui:

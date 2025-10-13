@@ -12,8 +12,8 @@ from typing import List, Tuple
 import gradio as gr
 import yaml
 
-from rag_model import RAGModel
-from prompts import UI_MESSAGES, EXAMPLE_QUERIES
+from src.rag_model import RAGModel
+from src.prompts import UI_MESSAGES, EXAMPLE_QUERIES
 
 class MainWindow:
     def __init__(self, config_path: str = "config.yml"):
@@ -35,45 +35,21 @@ class MainWindow:
     def build(self):
         """Build the Gradio interface"""
         
-        # Custom CSS for better styling
-        custom_css = """
-        .header {
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        .example-btn {
-            margin: 5px;
-        }
-        """
-        
         with gr.Blocks(
             title=self.config['ui']['title'],
-            theme=gr.themes.Soft(),
-            css=custom_css
+            theme=gr.themes.Soft()
         ) as demo:
             
             # Header
-            with gr.Row():
-                gr.Markdown(f"""
-                <div class="header">
-                    <h1>🎣 {self.config['ui']['title']}</h1>
-                    <p>{self.config['ui']['description']}</p>
-                </div>
-                """)
+            gr.Markdown(f"# 🎣 {self.config['ui']['title']}")
+            gr.Markdown(f"*{self.config['ui']['description']}*")
             
-            # Welcome message
-            gr.Markdown(UI_MESSAGES['welcome'])
-            
-            # Chat interface
+            # Chat interface with welcome message
             chatbot = gr.Chatbot(
-                height=500,
-                label="Conversation",
-                show_label=False,
-                avatar_images=(None, "🤖")
+                label="Chat",
+                height=350,
+                avatar_images=(None, "🤖"),
+                value=[[None, "👋 Welcome! I can help you with:\n\n🎣 Regulations • 🐟 Species info • 📍 Locations • 📏 Size limits • 📋 Licenses • ✅ Legal size checks\n\nAsk me anything about fishing in Tasmania!"]]
             )
             
             # Input area
@@ -82,57 +58,25 @@ class MainWindow:
                     placeholder="Ask me about fishing in Tasmania...",
                     label="Your Question",
                     scale=4,
-                    lines=2
+                    show_label=False
                 )
-                submit = gr.Button("Send 📤", variant="primary", scale=1)
+                submit = gr.Button("Send", variant="primary", scale=1)
+            
+            # Collapsible example questions
+            with gr.Accordion("💡 Example Questions", open=False):
+                example_btns = []
+                with gr.Row():
+                    for example in EXAMPLE_QUERIES[:3]:
+                        btn = gr.Button(example, size="sm")
+                        example_btns.append(btn)
+                with gr.Row():
+                    for example in EXAMPLE_QUERIES[3:5]:
+                        btn = gr.Button(example, size="sm")
+                        example_btns.append(btn)
             
             # Action buttons
             with gr.Row():
-                clear = gr.Button("Clear Chat 🗑️")
-                retry = gr.Button("Retry Last ↻")
-            
-            # Example questions
-            gr.Markdown("### 💡 Try These Example Questions:")
-            
-            with gr.Row():
-                example_btns = []
-                for example in EXAMPLE_QUERIES[:3]:
-                    btn = gr.Button(example, size="sm")
-                    example_btns.append(btn)
-            
-            with gr.Row():
-                for example in EXAMPLE_QUERIES[3:5]:
-                    btn = gr.Button(example, size="sm")
-                    example_btns.append(btn)
-            
-            # Footer info
-            with gr.Accordion("ℹ️ About This System", open=False):
-                gr.Markdown("""
-                ### How It Works
-                
-                This chatbot combines two powerful techniques:
-                
-                1. **📚 Retrieval Augmented Generation (RAG)**  
-                   Searches through official fishing documents to find accurate information
-                   
-                2. **🔧 Tool Calling**  
-                   Uses specialized tools to check fish size legality
-                
-                ### Knowledge Base
-                - Fishing regulations and rules
-                - Species identification guides  
-                - Location information
-                - Bag and size limit tables
-                - License requirements
-                
-                ### Tools Available
-                - **Legal Size Checker**: Verifies if your catch meets minimum size requirements
-                
-                ### ⚠️ Important
-                Always verify critical information with official sources:
-                - [Inland Fisheries Service Tasmania](https://ifs.tas.gov.au/)
-                - [Marine Fishing Tasmania](https://fishing.tas.gov.au/)
-                """)
+                clear = gr.Button("🗑️ Clear Chat", size="sm")
             
             # Event handlers
             def user_message(user_msg, history):
@@ -155,14 +99,15 @@ class MainWindow:
                 bot_response, chatbot, chatbot
             )
             
-            clear.click(lambda: None, None, chatbot, queue=False)
+            clear.click(lambda: [[None, "👋 Welcome! I can help you with:\n\n🎣 Regulations • 🐟 Species info • 📍 Locations • 📏 Size limits • 📋 Licenses • ✅ Legal size checks\n\nAsk me anything about fishing in Tasmania!"]], None, chatbot, queue=False)
             
             # Example button handlers
             for i, btn in enumerate(example_btns):
+                example_text = EXAMPLE_QUERIES[i]
                 btn.click(
-                    lambda x=EXAMPLE_QUERIES[i]: (x, []),
+                    lambda x=example_text: x,
                     None,
-                    [msg, chatbot],
+                    msg,
                     queue=False
                 )
         

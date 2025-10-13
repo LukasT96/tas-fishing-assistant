@@ -14,7 +14,7 @@ import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from typing import List, Dict, Tuple
 
-from prompts import SYSTEM_PROMPT, ROUTING_PROMPT, RAG_ANSWER_PROMPT, TOOL_INTEGRATION_PROMPT
+from src.prompts import SYSTEM_PROMPT, ROUTING_PROMPT, RAG_ANSWER_PROMPT, TOOL_INTEGRATION_PROMPT
 
 class RAGModel:
     def __init__(self, config_path: str = "config.yml"):
@@ -28,20 +28,23 @@ class RAGModel:
         # Get API keys from environment
         groq_api_key = os.getenv("GROQ_API_KEY")
         gemini_api_key = os.getenv("GOOGLE_API_KEY")
-        
+
         if not groq_api_key or not gemini_api_key:
             raise ValueError("API keys not found in .env file")
-        
+
+        # Set default provider from config
+        self.default_provider = self.config['llm'].get('default_provider', 'groq')
+
         # Initialize clients
         self.groq_client = Groq(api_key=groq_api_key)
         self.gemini_client = genai.Client(api_key=gemini_api_key)
-        
+
         # Initialize ChromaDB
         self.chroma_client = chromadb.Client()
         self.embedding_function = SentenceTransformerEmbeddingFunction(
-            model_name=self.config['llm']['embedding']['model']
+            model_name=self.config['rag']['embedding']['model']
         )
-        
+
         # Create or get collection
         self.collection = self.chroma_client.get_or_create_collection(
             name=self.config['rag']['vector_db']['name'],
