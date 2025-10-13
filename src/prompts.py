@@ -133,9 +133,9 @@ Ask me anything about fishing in Tasmania!""",
 
 # Example Queries for UI
 EXAMPLE_QUERIES = [
-    "What are the bag limits for brown trout in Tasmania?",
-    "I caught a 26cm rainbow trout - is it legal to keep?",
-    "Where are the best locations to fish for Atlantic salmon?",
-    "What fishing license do I need for freshwater fishing?",
-    "What species can I catch at Great Lake?",
+    "What are the bag limits for flathead?",
+    "Is a 28cm bream legal to keep?",
+    "Where can I fish in the Derwent River?",
+    "What licence do I need for rock lobster fishing?",
+    "What species can I catch at St Helens?",
 ]

@@ -37,18 +37,23 @@ class MainWindow:
         
         with gr.Blocks(
             title=self.config['ui']['title'],
-            theme=gr.themes.Soft()
+            theme=gr.themes.Soft(
+                font=["Arial", "sans-serif"], 
+                font_mono=["Arial", "monospace"],
+                text_size="sm"
+            ),
+            css_paths=["static/style.css"]
         ) as demo:
             
             # Header
-            gr.Markdown(f"# 🎣 {self.config['ui']['title']}")
+            gr.Markdown(f"### 🎣 {self.config['ui']['title']}")
             gr.Markdown(f"*{self.config['ui']['description']}*")
             
             # Chat interface with welcome message
             chatbot = gr.Chatbot(
                 label="Chat",
                 height=350,
-                avatar_images=(None, "🤖"),
+                avatar_images=(None, None),
                 value=[[None, "👋 Welcome! I can help you with:\n\n🎣 Regulations • 🐟 Species info • 📍 Locations • 📏 Size limits • 📋 Licenses • ✅ Legal size checks\n\nAsk me anything about fishing in Tasmania!"]]
             )
             
@@ -74,10 +79,6 @@ class MainWindow:
                         btn = gr.Button(example, size="sm")
                         example_btns.append(btn)
             
-            # Action buttons
-            with gr.Row():
-                clear = gr.Button("🗑️ Clear Chat", size="sm")
-            
             # Event handlers
             def user_message(user_msg, history):
                 """Add user message to chat"""
@@ -98,8 +99,6 @@ class MainWindow:
             submit.click(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(
                 bot_response, chatbot, chatbot
             )
-            
-            clear.click(lambda: [[None, "👋 Welcome! I can help you with:\n\n🎣 Regulations • 🐟 Species info • 📍 Locations • 📏 Size limits • 📋 Licenses • ✅ Legal size checks\n\nAsk me anything about fishing in Tasmania!"]], None, chatbot, queue=False)
             
             # Example button handlers
             for i, btn in enumerate(example_btns):

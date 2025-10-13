@@ -91,16 +91,6 @@ body {
     max-height: none !important;
 }
 
-/* Reduce chatbot message font size */
-.chatbot .message {
-    font-size: clamp(0.7rem, 1.1vh, 0.8rem) !important;
-}
-
-.chatbot .message p {
-    font-size: clamp(0.7rem, 1.1vh, 0.8rem) !important;
-    margin: 0.3vh 0 !important;
-}
-
 /* Very Compact spacing */
 .gr-row {
     margin: 0.2vh 0 !important;

@@ -42,6 +42,7 @@ documents:
     - "Fishing_licences.txt"
     - "General_Guide.txt"
     - "Fishing_seasons.txt"
+    - "Locations.txt"
 
 
 # Tool Settings
@@ -52,9 +53,9 @@ tools:
     api_key_env: "WEATHER_API_KEY"
     provider: "openweathermap"
     base_url: "https://api.openweathermap.org/data/2.5"
-# Legal size check tool
-legal_size_check:
-  enabled: true
+  # Legal size check tool
+  legal_size_check:
+    enabled: true
 
 # UI Settings
 ui:
