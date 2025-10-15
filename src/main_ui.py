@@ -46,7 +46,7 @@ class MainWindow:
         ) as demo:
             
             # Header
-            gr.Markdown(f"### 🎣 {self.config['ui']['title']}")
+            gr.Markdown(f"### {self.config['ui']['title']}")
             gr.Markdown(f"*{self.config['ui']['description']}*")
             
             # Chat interface with welcome message
@@ -54,7 +54,7 @@ class MainWindow:
                 label="Chat",
                 height=350,
                 avatar_images=(None, None),
-                value=[[None, "👋 Welcome! I can help you with:\n\n🎣 Regulations • 🐟 Species info • 📍 Locations • 📏 Size limits • 📋 Licenses • ✅ Legal size checks\n\nAsk me anything about fishing in Tasmania!"]]
+                value=[[None, "Welcome! I can help you with:\n\nRegulations | Species info | Locations | Size limits | Licenses | Legal size checks\n\nAsk me anything about fishing in Tasmania!"]]
             )
             
             # Input area
@@ -68,7 +68,7 @@ class MainWindow:
                 submit = gr.Button("Send", variant="primary", scale=1)
             
             # Collapsible example questions
-            with gr.Accordion("💡 Example Questions", open=False):
+            with gr.Accordion("Example Questions", open=False):
                 example_btns = []
                 with gr.Row():
                     for example in EXAMPLE_QUERIES[:3]:

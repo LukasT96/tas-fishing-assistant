@@ -12,9 +12,11 @@ from google import genai
 from dotenv import load_dotenv
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 from src.prompts import SYSTEM_PROMPT, ROUTING_PROMPT, RAG_ANSWER_PROMPT, TOOL_INTEGRATION_PROMPT
+from src.router import Router
+from src.tools_model import ToolsModel
 
 class RAGModel:
     def __init__(self, config_path: str = "config.yml"):
@@ -50,6 +52,10 @@ class RAGModel:
             name=self.config['rag']['vector_db']['name'],
             embedding_function=self.embedding_function
         )
+        
+        # Initialize router and tools
+        self.router = Router(config_path=config_path)
+        self.tools = ToolsModel(config_path=config_path)
         
     
     def load_ground_truth(self, file_path: str, source_name: str = None) -> int:
@@ -117,45 +123,143 @@ class RAGModel:
             )
             return response.text
     
-    def query(self, question: str) -> str:
-        """Main query method - processes user question"""
+    def query(self, question: str, show_routing: bool = False) -> str:
+        """
+        Main query method - processes user question using router and tools.
         
-        # Search documents
-        retrievals = self.search(question)
+        Args:
+            question: User's question
+            show_routing: Whether to include routing explanation in response
+            
+        Returns:
+            Answer string with citations and/or tool results
+        """
         
-        if not retrievals:
-            return "I don't have information about that in my knowledge base. Please check official sources."
+        try:
+            # Step 1: Route the query
+            routing_decision = self.router.route(question)
+            
+            context = ""
+            retrievals = []
+            tool_result = None
+            
+            # Step 2: Execute based on routing decision
+            
+            # 2a. Retrieve from documents if needed
+            if routing_decision['needs_rag']:
+                retrievals = self.search(question)
+                
+                if retrievals:
+                    # Format context with clear citations
+                    context = self._format_context_with_citations(retrievals)
+                else:
+                    context = "[No relevant documents found]"
+            
+            # 2b. Call tool if needed
+            if routing_decision['needs_tool']:
+                tool_name = routing_decision.get('tool_name')
+                tool_params = routing_decision.get('tool_params', {})
+                
+                if tool_name and tool_params:
+                    tool_result = self.tools.call_tool(tool_name, **tool_params)
+                else:
+                    tool_result = {
+                        "success": False,
+                        "error": "Missing tool name or parameters",
+                        "message": "Could not determine which tool to use or what parameters to provide."
+                    }
+            
+            # Step 3: Generate final answer
+            answer = self._generate_answer(question, context, tool_result, routing_decision)
+            
+            # Optionally add routing explanation
+            if show_routing:
+                routing_explanation = self.router.explain_routing(routing_decision)
+                answer = f"**[Routing Decision]**\n{routing_explanation}\n\n---\n\n{answer}"
+            
+            return answer
+            
+        except Exception as e:
+            return f"An error occurred while processing your question.\n\n**Error:** {str(e)}\n\nPlease try rephrasing your question or contact support."
+    
+    def _format_context_with_citations(self, retrievals: List[Tuple]) -> str:
+        """
+        Format retrieved documents with clear citations.
         
-        # Format context
-        context = "\n\n".join([
-            f"[{meta['source']}]: {doc}"
-            for _, doc, meta in retrievals
-        ])
+        Args:
+            retrievals: List of (id, document, metadata) tuples
+            
+        Returns:
+            Formatted context string with citations
+        """
+        context_parts = []
         
-        # Check if need to use tool (simple keyword matching for now)
-        needs_tool = any(keyword in question.lower() for keyword in [
-            "legal", "size", "can i keep", "is it legal", "caught", "cm"
-        ])
+        for idx, (doc_id, doc_text, meta) in enumerate(retrievals, 1):
+            source = meta.get('source', 'Unknown')
+            chunk_id = meta.get('chunk_id', '?')
+            
+            citation = f"[{idx}] Source: {source} (chunk {chunk_id})"
+            context_parts.append(f"{citation}\n{doc_text}")
         
-        tool_result = None
-        if needs_tool and self.config['tools']['legal_size_check']['enabled']:
-            # Simple extraction (in production, use LLM to extract parameters)
-            # For now, this is a placeholder
-            tool_result = "Tool functionality to be implemented with parameter extraction"
+        return "\n\n---\n\n".join(context_parts)
+    
+    def _generate_answer(self, question: str, context: str, tool_result: Optional[Dict], routing_decision: Dict) -> str:
+        """
+        Generate final answer based on available information.
         
-        # Generate answer
-        if tool_result:
-            prompt = TOOL_INTEGRATION_PROMPT.format(
-                query=question,
-                context=context,
-                tool_result=tool_result
-            )
-        else:
+        Args:
+            question: User's question
+            context: Retrieved document context (may be empty)
+            tool_result: Tool execution result (may be None)
+            routing_decision: Router's decision
+            
+        Returns:
+            Final answer string
+        """
+        
+        # Case 1: Both RAG and Tool
+        if routing_decision['needs_rag'] and routing_decision['needs_tool'] and tool_result:
+            if tool_result.get('success', False):
+                tool_message = tool_result.get('message', str(tool_result))
+                
+                prompt = TOOL_INTEGRATION_PROMPT.format(
+                    query=question,
+                    context=context if context and context != "[No relevant documents found]" else "No additional context from documents.",
+                    tool_result=tool_message
+                )
+            else:
+                # Tool failed, fall back to RAG only
+                prompt = RAG_ANSWER_PROMPT.format(
+                    query=question,
+                    context=context if context else "No relevant information found in documents."
+                )
+        
+        # Case 2: Tool only
+        elif routing_decision['needs_tool'] and tool_result:
+            if tool_result.get('success', False):
+                # Return tool result directly with minimal LLM processing
+                tool_message = tool_result.get('message', str(tool_result))
+                return tool_message
+            else:
+                # Tool failed
+                error_msg = tool_result.get('message', 'Tool execution failed')
+                return error_msg
+        
+        # Case 3: RAG only
+        elif routing_decision['needs_rag'] and context:
+            if context == "[No relevant documents found]":
+                return "I don't have information about that in my knowledge base. Please check the official Inland Fisheries Service Tasmania website at https://ifs.tas.gov.au/"
+            
             prompt = RAG_ANSWER_PROMPT.format(
                 query=question,
                 context=context
             )
         
+        # Case 4: Nothing available
+        else:
+            return "I'm not sure how to answer that question. Could you please rephrase it or provide more details?"
+        
+        # Generate answer using LLM
         answer = self.llm_call(prompt)
         return answer
     

@@ -8,9 +8,9 @@ llm:
     temperature: 0.3
     max_tokens: 1024
 
-  # Google Germini settings
-  germini:
-    model: "germini-2.5-flash"
+  # Google Gemini settings
+  gemini:
+    model: "gemini-2.5-flash"
     temperature: 0.3
     max_tokens: 1024
 

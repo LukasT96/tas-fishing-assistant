@@ -29,6 +29,7 @@ ROUTING_PROMPT = """You are a Tasmania fishing information assistant with access
 Available Resources:
 1. **Knowledge Base (RAG)**: Fishing regulations, species guides, locations, bag/size limits, license information
 2. **Legal Size Check Tool**: Verify if a caught fish meets legal size requirements
+3. **Weather Tool**: Get weather forecast and fishing conditions for Tasmania locations
 
 Analyze the user's question and decide which resources to use:
 
@@ -38,15 +39,16 @@ Respond in JSON format:
 {{
     "needs_rag": true/false,
     "needs_tool": true/false,
-    "tool_name": "check_legal_size" or null,
-    "tool_params": {{"species": "...", "length_cm": ...}} or null,
+    "tool_name": "check_legal_size" or "get_fishing_weather" or null,
+    "tool_params": {{"species": "...", "length_cm": ...}} or {{"location": "...", "days": 1}} or null,
     "reasoning": "brief explanation of your decision"
 }}
 
 Decision Guidelines:
 - Questions about regulations, species info, locations, licenses → needs_rag: true
-- Questions about "is X cm legal" or "can I keep this fish" → needs_tool: true
-- Questions combining both → both true
+- Questions about "is X cm legal" or "can I keep this fish" → needs_tool: true, tool_name: "check_legal_size"
+- Questions about weather, fishing conditions, forecast → needs_tool: true, tool_name: "get_fishing_weather"
+- Questions combining information types → set multiple flags to true
 """
 
 RAG_ANSWER_PROMPT = """Answer the following question about fishing in Tasmania using ONLY the provided context.

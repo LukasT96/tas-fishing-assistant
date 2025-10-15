@@ -25,17 +25,121 @@ class ToolsModel:
         # Load tools configurations
         self.tools_config = self.config.get('tools', {})
         
+        # Legal size check settings
+        self.legal_size_enabled = self.tools_config.get('legal_size_check', {}).get('enabled', True)
+        
+        # Legal size limits for Tasmania (in cm)
+        self.legal_sizes = {
+            "brown trout": 25.0,
+            "rainbow trout": 25.0,
+            "atlantic salmon": 30.0,
+            "rock lobster": 10.5,  # carapace length
+            "abalone": 11.0  # shell length
+        }
+        
         # Weather API settings
         self.weather_config = self.tools_config.get('weather_api', {})
         self.weather_enabled = self.weather_config.get('enable', False)
         self.weather_provider = self.weather_config.get('provider', 'openweathermap')
         
+        # Common Tasmania fishing locations
+        self.fishing_locations = [
+            "Hobart", "Launceston", "Devonport", "Burnie", "Derwent River",
+            "Tamar River", "Great Lake", "Lake St Clair", "Gordon River",
+            "St Helens", "Bicheno", "Swansea", "Strahan", "Port Arthur"
+        ]
+        
         if self.weather_enabled:
             self.weather_api_key = os.getenv(
                 self.weather_config.get('api_key_env', 'WEATHER_API_KEY')
             )
-            self.base_url = self.weather_config.get('base_url', '')
+            self.weather_base_url = self.weather_config.get('base_url', '')
     
+    def check_legal_size(self, species: str, length_cm: float) -> Dict:
+        """
+        Check if a caught fish meets legal minimum size requirements in Tasmania.
+        
+        Args:
+            species: Fish species name (e.g., 'brown trout', 'rainbow trout')
+            length_cm: Length of the caught fish in centimeters
+            
+        Returns:
+            Dict containing:
+                - success: bool
+                - legal: bool (whether the fish is legal to keep)
+                - species: str (normalized species name)
+                - length_cm: float (provided length)
+                - legal_size_cm: float (minimum legal size)
+                - difference_cm: float (how much over/under the limit)
+                - message: str (human-readable result)
+        """
+        if not self.legal_size_enabled:
+            return {
+                "success": False,
+                "error": "Legal size check tool is disabled",
+                "message": "Legal size check tool is currently disabled in configuration"
+            }
+        
+        # Normalize species name (lowercase, strip whitespace)
+        species_normalized = species.lower().strip()
+        
+        # Check if species is supported
+        if species_normalized not in self.legal_sizes:
+            available_species = ", ".join(self.legal_sizes.keys())
+            return {
+                "success": False,
+                "error": f"Unknown species: {species}",
+                "message": f"I don't have legal size information for '{species}'. Available species: {available_species}",
+                "available_species": list(self.legal_sizes.keys())
+            }
+        
+        # Validate length
+        if length_cm <= 0:
+            return {
+                "success": False,
+                "error": "Invalid length",
+                "message": f"Length must be greater than 0. You provided: {length_cm} cm"
+            }
+        
+        # Get legal size for species
+        legal_size = self.legal_sizes[species_normalized]
+        
+        # Check if legal to keep
+        is_legal = length_cm >= legal_size
+        difference = length_cm - legal_size
+        
+        # Format measurement note for rock lobster and abalone
+        measurement_note = ""
+        if species_normalized == "rock lobster":
+            measurement_note = " (carapace length)"
+        elif species_normalized == "abalone":
+            measurement_note = " (shell length)"
+        
+        # Create detailed message
+        if is_legal:
+            message = f"✅ **LEGAL TO KEEP**\n\n"
+            message += f"• Species: {species_normalized.title()}\n"
+            message += f"• Your catch: {length_cm} cm{measurement_note}\n"
+            message += f"• Legal minimum: {legal_size} cm\n"
+            message += f"• Over limit by: {difference:.1f} cm\n\n"
+            message += f"This fish meets the legal size requirement and may be kept (subject to bag limits)."
+        else:
+            message = f"❌ **MUST BE RELEASED**\n\n"
+            message += f"• Species: {species_normalized.title()}\n"
+            message += f"• Your catch: {length_cm} cm{measurement_note}\n"
+            message += f"• Legal minimum: {legal_size} cm\n"
+            message += f"• Under limit by: {abs(difference):.1f} cm\n\n"
+            message += f"This fish is undersized and must be returned to the water immediately with care."
+        
+        return {
+            "success": True,
+            "legal": is_legal,
+            "species": species_normalized,
+            "length_cm": length_cm,
+            "legal_size_cm": legal_size,
+            "difference_cm": difference,
+            "message": message
+        }
     
     def get_fishing_weather(self, location: str, days: int = 1) -> Dict:
         if not self.weather_enabled:
@@ -253,6 +357,9 @@ class ToolsModel:
         """Return list of available tool names"""
         tools = []
         
+        if self.legal_size_enabled:
+            tools.append("check_legal_size")
+        
         if self.weather_enabled:
             tools.append("get_fishing_weather")
         
@@ -269,7 +376,12 @@ class ToolsModel:
         Returns:
             Tool execution results
         """
-        if tool_name == "get_fishing_weather":
+        if tool_name == "check_legal_size":
+            return self.check_legal_size(
+                species=kwargs.get("species", ""),
+                length_cm=kwargs.get("length_cm", 0)
+            )
+        elif tool_name == "get_fishing_weather":
             return self.get_fishing_weather(
                 location=kwargs.get("location", ""),
                 days=kwargs.get("days", 1)
@@ -285,6 +397,31 @@ class ToolsModel:
         """Get OpenAI-style function descriptions for LLM tool calling"""
         descriptions = []
         
+        if self.legal_size_enabled:
+            descriptions.append({
+                "type": "function",
+                "function": {
+                    "name": "check_legal_size",
+                    "description": "Check if a caught fish meets the legal minimum size requirements in Tasmania. Returns whether the fish is legal to keep or must be released. Use this when users ask about legal sizes, whether they can keep a fish, or if a specific length is legal.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "species": {
+                                "type": "string",
+                                "description": "The fish species name (e.g., 'brown trout', 'rainbow trout', 'atlantic salmon', 'rock lobster', 'abalone')",
+                                "enum": ["brown trout", "rainbow trout", "atlantic salmon", "rock lobster", "abalone"]
+                            },
+                            "length_cm": {
+                                "type": "number",
+                                "description": "The length of the caught fish in centimeters",
+                                "minimum": 0
+                            }
+                        },
+                        "required": ["species", "length_cm"]
+                    }
+                }
+            })
+        
         if self.weather_enabled:
             descriptions.append({
                 "type": "function",
@@ -296,8 +433,7 @@ class ToolsModel:
                         "properties": {
                             "location": {
                                 "type": "string",
-                                "description": "Tasmania fishing location name",
-                                "enum": self.fishing_locations
+                                "description": "Tasmania fishing location name"
                             },
                             "days": {
                                 "type": "integer",
