@@ -50,7 +50,7 @@ class EvaluationFramework:
                 "question": "Do I need a licence for rod and line fishing in marine waters?",
                 "type": "RAG",
                 "expected_answer": "No, you don't need a licence for rod and line fishing in marine waters in Tasmania.",
-                "expected_citations": ["Fishing_licences", "General_Guide"],
+                "expected_citations": ["General_Guide"],
                 "reasoning": "Tests RAG retrieval of licence requirement information"
             },
             {

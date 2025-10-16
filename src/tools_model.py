@@ -10,6 +10,7 @@ when out of scope of RAG model.
 import os
 import yaml
 import requests
+import json
 from typing import Dict, Optional, List
 from dotenv import load_dotenv
 
@@ -28,14 +29,8 @@ class ToolsModel:
         # Legal size check settings
         self.legal_size_enabled = self.tools_config.get('legal_size_check', {}).get('enabled', True)
         
-        # Legal size limits for Tasmania (in cm)
-        self.legal_sizes = {
-            "brown trout": 25.0,
-            "rainbow trout": 25.0,
-            "atlantic salmon": 30.0,
-            "rock lobster": 10.5,  # carapace length
-            "abalone": 11.0  # shell length
-        }
+        # Load legal size limits from tas_fishing_species.json
+        self.legal_sizes = self._load_legal_sizes()
         
         # Weather API settings
         self.weather_config = self.tools_config.get('weather_api', {})
@@ -54,6 +49,114 @@ class ToolsModel:
                 self.weather_config.get('api_key_env', 'WEATHER_API_KEY')
             )
             self.weather_base_url = self.weather_config.get('base_url', '')
+    
+    def _load_legal_sizes(self) -> Dict[str, float]:
+        """
+        Load legal size limits from tas_fishing_species.json
+        
+        This method dynamically loads legal size information from the JSON file,
+        making it easy to maintain and update without changing code.
+        
+        **How it works:**
+        1. Reads tas_fishing_species.json and extracts "Minimum size" field
+        2. Parses size strings (e.g., "35cm", "120mm") using regex
+        3. Converts all sizes to centimeters
+        4. Creates aliases for common name variations
+        5. Adds manual overrides for species not in JSON (e.g., freshwater fish)
+        
+        **To add a new species:**
+        - If in JSON: Just ensure "Minimum size" field has a value like "35cm" or "120mm"
+        - If not in JSON: Add to the manual_sizes dictionary below
+        
+        Returns:
+            Dictionary mapping species names to minimum legal sizes in cm
+        """
+        species_file = "data/tas_fishing_species.json"
+        legal_sizes = {}
+        
+        try:
+            with open(species_file, 'r', encoding='utf-8') as f:
+                species_data = json.load(f)
+            
+            # Parse the JSON and extract minimum sizes
+            for species_name, info in species_data.items():
+                min_size = info.get("Minimum size")
+                
+                # Skip if no minimum size specified
+                if not min_size or min_size in [None, ""]:
+                    continue
+                
+                # Parse the minimum size string
+                # Examples:
+                # "120 mm from Arthur River east to Musselroe Point, 138 mm for all other waters."
+                # "All waters (except King and Flinders Islands): Minimum size 35cm , maximum size 40cm"
+                # "Northern Zone - male 110mm, female 120mm"
+                
+                # Normalize species name for lookup
+                species_key = species_name.lower().replace(" - ", " ").strip()
+                
+                # Extract numeric size (look for first occurrence of digits followed by mm or cm)
+                import re
+                
+                # Try to find mm or cm measurements
+                cm_match = re.search(r'(\d+(?:\.\d+)?)\s*cm', min_size.lower())
+                mm_match = re.search(r'(\d+(?:\.\d+)?)\s*mm', min_size.lower())
+                
+                if cm_match:
+                    size_cm = float(cm_match.group(1))
+                    legal_sizes[species_key] = size_cm
+                elif mm_match:
+                    size_mm = float(mm_match.group(1))
+                    size_cm = size_mm / 10.0  # Convert mm to cm
+                    legal_sizes[species_key] = size_cm
+            
+            # Add aliases for common names
+            if "abalone blacklip" in legal_sizes:
+                legal_sizes["blacklip abalone"] = legal_sizes["abalone blacklip"]
+                legal_sizes["abalone"] = legal_sizes["abalone blacklip"]
+            
+            if "abalone greenlip" in legal_sizes:
+                legal_sizes["greenlip abalone"] = legal_sizes["abalone greenlip"]
+            
+            if "trout brown" in legal_sizes:
+                legal_sizes["brown trout"] = legal_sizes["trout brown"]
+            
+            if "salmon atlantic" in legal_sizes:
+                legal_sizes["atlantic salmon"] = legal_sizes["salmon atlantic"]
+            
+            if "rock lobster southern" in legal_sizes or "rock lobster eastern" in legal_sizes:
+                # Use the northern zone male size as default (110mm = 11cm)
+                legal_sizes["rock lobster"] = 11.0
+                legal_sizes["southern rock lobster"] = 11.0
+                legal_sizes["eastern rock lobster"] = 11.0
+            
+            if "flathead sand" in legal_sizes:
+                legal_sizes["sand flathead"] = legal_sizes["flathead sand"]
+            
+            # Add manual overrides for species not in JSON or with null values
+            # (e.g., freshwater species managed by Inland Fisheries Service)
+            manual_sizes = {
+                "brown trout": 25.0,
+                "rainbow trout": 25.0,
+                "atlantic salmon": 30.0,
+                "trout brown": 25.0,
+                "salmon atlantic": 30.0
+            }
+            
+            for species, size in manual_sizes.items():
+                if species not in legal_sizes:
+                    legal_sizes[species] = size
+            
+            print(f"Loaded {len(legal_sizes)} species with legal size limits from {species_file}")
+            
+        except FileNotFoundError:
+            print(f"Warning: {species_file} not found. Using empty legal sizes database.")
+        except json.JSONDecodeError as e:
+            print(f"Error parsing {species_file}: {e}. Using empty legal sizes database.")
+        except Exception as e:
+            print(f"Unexpected error loading legal sizes: {e}. Using empty legal sizes database.")
+        
+        return legal_sizes
     
     def check_legal_size(self, species: str, length_cm: float) -> Dict:
         """

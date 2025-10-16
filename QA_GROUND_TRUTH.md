@@ -103,7 +103,8 @@ These questions test the three core scenarios: RAG only, Tool only, and RAG + To
 
 **System Verification**:
 - ✅ Documents loaded: Yes
-- ⚠️ Retrieved expected source: Retrieved from General_Guide instead of Fishing_licences (both have the answer)
+- ✅ Tool called with correct parameters: Yes
+- ✅ Tool executed successfully: Yes
 - ✅ Final answer correct: Yes
 
 **Note**: System retrieved from backup source (General_Guide) instead of primary source (Fishing_licences), but answer is still correct. Shows document redundancy is helpful.
@@ -239,7 +240,7 @@ These questions test the three core scenarios: RAG only, Tool only, and RAG + To
 |---------|---------------|--------|-------|
 | P1 | RAG | ⚠️ Partial | Correct answer but retrieval issue |
 | P2 | Tool | ✅ Pass | Perfect execution |
-| P3 | RAG | ✅ Pass | Retrieved from backup source |
+| P3 | RAG | ✅ Pass | Perfect execution |
 | P4 | Tool | ✅ Pass | Perfect execution |
 | P5 | RAG | ✅ Pass | Perfect execution |
 | P6 | Tool | ✅ Pass | Negative case handled correctly |

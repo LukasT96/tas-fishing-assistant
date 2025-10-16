@@ -73,15 +73,21 @@ Documents are chunked (300 words, 50-word overlap) and embedded using `all-MiniL
 
 ### Legal Size Checker
 
-Verifies if caught fish meet minimum legal size requirements:
+Verifies if caught fish meet minimum legal size requirements. The system **dynamically loads** species data from `tas_fishing_species.json`, making it easy to add new species without code changes.
+
+**Currently Supports 17+ Species**, including:
 
 | Species | Minimum Size |
 |---------|--------------|
 | Brown Trout | 25 cm |
 | Rainbow Trout | 25 cm |
 | Atlantic Salmon | 30 cm |
-| Rock Lobster | 10.5 cm (carapace) |
-| Abalone | 11 cm (shell) |
+| Rock Lobster (Southern/Eastern) | 11 cm (carapace) |
+| Abalone (Blacklip) | 12 cm (shell) |
+| Abalone (Greenlip) | 13.2 cm (shell) |
+| Sand Flathead | 35 cm |
+
+**Adding New Species**: Simply update the `"Minimum size"` field in `tas_fishing_species.json` - no code changes needed!
 
 **Usage**: Ask questions like "Is a 28cm brown trout legal to keep?"
 
@@ -138,12 +144,17 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 1. **Groq API Key**:
    - Sign up at [https://console.groq.com](https://console.groq.com)
    - Navigate to "API Keys" and create a new key
-   - Copy and save the key (you won't be able to see it again!)
+   - Copy and save the key in .env
 
 2. **Google Gemini API Key**:
    - Go to [Google AI Studio](https://aistudio.google.com)
    - Click "Get API Key" and create a new key
-   - Copy and save the key
+   - Copy and save the key in .env
+
+3. **Weather API Key**:
+   - Go to [OpenWeathermap](https://openweathermap.org/api)
+   - Click "Get API Key" and create a new key
+   - Copy and save the key in .env
 
 ### Installation Steps
 
@@ -178,6 +189,7 @@ Create a file named `.env` in the root directory:
 ```bash
 GROQ_API_KEY=your_groq_key_here
 GOOGLE_API_KEY=your_gemini_key_here
+WEATHER_API_KEY=your_weather_key_here
 ```
 
 **5. Run the application:**
@@ -298,9 +310,10 @@ Results saved to `evaluation_results.json`.
 ### Current Limitations
 
 1. **Limited Tool Species**
-   - Legal size checker only supports 5 species (trout, salmon, lobster, abalone)
-   - Many fish species in Tasmania not covered
-   - **Mitigation**: System gracefully returns "species not supported" message
+   - Legal size checker supports 17+ species (dynamically loaded from JSON)
+   - Species with no minimum size in data not covered (e.g., bream, many reef fish)
+   - **Mitigation**: System gracefully returns "species not supported" message with list of available species
+   - **Easy to Expand**: Add new species by updating `tas_fishing_species.json` - no code changes needed
 
 2. **Document Coverage Gaps**
    - Documents focus on regulations, not fishing techniques or local knowledge
@@ -329,7 +342,6 @@ Results saved to `evaluation_results.json`.
 ### Out of Scope
 
 The system **does not** provide:
-- ❌ Real-time weather or tide information (tool scaffolded but not enabled)
 - ❌ Fishing spot recommendations based on conditions
 - ❌ Bait or fishing technique advice
 - ❌ Species identification from images
@@ -398,7 +410,7 @@ This will:
 
 Potential improvements identified during evaluation:
 
-1. **Expand Tool Coverage**: Add more species to legal size checker
+1. **Expand Tool Coverage**: Supports 17+ species via dynamic JSON loading
 2. **Weather API Integration**: Already scaffolded in `tools_model.py`
 3. **Hybrid Search**: Combine semantic + keyword search for better retrieval
 4. **Re-ranking**: Re-rank retrieved chunks using cross-encoder
