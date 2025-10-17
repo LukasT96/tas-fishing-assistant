@@ -1,102 +1,41 @@
-/* Tasmania Fishing Assistant - Compact Layout */
 
-/* Remove all scrolling and use viewport units */
-body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
+
+/* Fill the viewport with the outer container */
+html, body, #root, .gradio-container { height: 100%; margin: 0; }
+
+/* Make the top-level Blocks stretch and act as a flex column */
+.gradio-container { height: 100dvh; display: flex; flex-direction: column; }
+.gradio-container > .gr-block,
+.gradio-container > div {           /* fallback for older Gradio */
+flex: 1 1 auto; 
+min-height: 0;
+display: flex;
+flex-direction: column;
 }
 
-/* Header - Very Compact */
-.header {
-    text-align: center;
-    padding: 0.5vh 2vw;
-    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-    color: white;
-    border-radius: 6px;
-    margin-bottom: 0.5vh;
+/* The layout row should fill its parent (not 100vh) */
+.app_row { height: 100%; }
+
+/* Allow flex children to grow/shrink */
+.app_row > .gr-column { min-height: 0; }
+
+/* Right column is a flex column */
+.chat_col { display: flex; flex-direction: column; min-height: 0; }
+
+/* ChatInterface root flexes to fill */
+.chat_col > .gr-chatinterface,
+.chat_col > .gr-chat-interface {
+display: flex; flex-direction: column;
+flex: 1 1 auto; min-height: 0;
 }
 
-.header h1 {
-    margin: 0;
-    font-size: clamp(0.85rem, 1.8vh, 1.2rem);
-    font-weight: 600;
-}
+/* Chat area grows; form stays pinned at bottom */
+.chat_col .gr-chatbot, .chat_col .chatbot { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.chat_col form { flex-shrink: 0; }
 
-.header p {
-    margin: 0.2vh 0 0 0;
-    font-size: clamp(0.6rem, 1vh, 0.75rem);
-    opacity: 0.95;
-}
-
-/* Welcome Section - Very Compact */
-.welcome-section {
-    background-color: #f8f9fa;
-    padding: 0.5vh 1vw;
-    border-radius: 4px;
-    border-left: 2px solid #2196F3;
-    margin-bottom: 0.5vh;
-    font-size: clamp(0.6rem, 1vh, 0.7rem);
-}
-
-.welcome-section h3 {
-    color: #1976D2;
-    margin: 0 0 0.3vh 0;
-    font-size: clamp(0.7rem, 1.1vh, 0.8rem);
-}
-
-/* Buttons - More Compact */
-.example-btn {
-    background-color: #f0f7ff;
-    border: 1px solid #2196F3;
-    color: #1976D2;
-    font-size: clamp(0.6rem, 1vh, 0.7rem);
-    padding: 0.3vh 0.8vw;
-    transition: all 0.2s ease;
-}
-
-.example-btn:hover {
-    background-color: #2196F3;
-    color: white;
-}
-
-.clear-btn {
-    background-color: #f44336;
-    color: white;
-    font-size: clamp(0.6rem, 1vh, 0.7rem);
-}
-
-.retry-btn {
-    background-color: #FF9800;
-    color: white;
-    font-size: clamp(0.6rem, 1vh, 0.7rem);
-}
-
-.submit-btn {
-    background-color: #4CAF50;
-    color: white;
-    font-size: clamp(0.65rem, 1.1vh, 0.75rem);
-}
-
-/* Remove margins from Gradio containers */
-.gradio-container {
-    max-height: 100vh !important;
-    overflow: hidden !important;
-    padding: 0.5vh 1vw !important;
-}
-
-/* Make chatbot responsive */
-.chatbot {
-    height: auto !important;
-    max-height: none !important;
-}
-
-/* Very Compact spacing */
-.gr-row {
-    margin: 0.2vh 0 !important;
-}
-
-.gr-button {
-    margin: 0.2vh 0.3vw !important;
-    padding: 0.3vh 0.8vw !important;
+.chat_card {
+border: 1px solid var(--border-color-primary);
+border-radius: 12px;
+padding: 12px;
+background: var(--panel-background-fill);
 }

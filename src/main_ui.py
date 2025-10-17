@@ -33,88 +33,57 @@ class MainWindow:
         self.chat_interface = None
 
     def build(self):
-        """Build the Gradio interface"""
-        
+        """Build a simple 2-column UI: left = sidebar, right = default ChatInterface."""        
+        welcome_md = """### Welcome
+                            I can help you with:
+
+                            - **Regulations** – Fishing rules and restrictions  
+                            - **Species info** – Identification and details  
+                            - **Locations** – Where to fish in Tasmania  
+                            - **Size limits** – Legal minimum sizes  
+                            - **Licenses** – Permit requirements  
+                            - **Legal size checks** – Check if your catch is legal
+
+                            Ask me anything about fishing in Tasmania!
+                            """
+
+        # Show examples on the left as a simple list (right side stays default)
+        examples_md = "### Example questions\n" + "\n".join(f"- {q}" for q in EXAMPLE_QUERIES)
+
         with gr.Blocks(
             title=self.config['ui']['title'],
-            theme=gr.themes.Soft(
-                font=["Arial", "sans-serif"], 
-                font_mono=["Arial", "monospace"],
-                text_size="sm"
-            ),
+            theme='JohnSmith9982/small_and_pretty',
+            fill_height=True,
             css_paths=["static/style.css"]
         ) as demo:
-            
-            # Header
-            gr.Markdown(f"### {self.config['ui']['title']}")
-            gr.Markdown(f"*{self.config['ui']['description']}*")
-            
-            # Chat interface with welcome message
-            chatbot = gr.Chatbot(
-                label="Chat",
-                height=350,
-                avatar_images=(None, None),
-                value=[[None, "Welcome! I can help you with:\n\nRegulations | Species info | Locations | Size limits | Licenses | Legal size checks\n\nAsk me anything about fishing in Tasmania!"]]
-            )
-            
-            # Input area
-            with gr.Row():
-                msg = gr.Textbox(
-                    placeholder="Ask me about fishing in Tasmania...",
-                    label="Your Question",
-                    scale=4,
-                    show_label=False
-                )
-                submit = gr.Button("Send", variant="primary", scale=1)
-            
-            # Collapsible example questions
-            with gr.Accordion("Example Questions", open=False):
-                example_btns = []
-                with gr.Row():
-                    for example in EXAMPLE_QUERIES[:3]:
-                        btn = gr.Button(example, size="sm")
-                        example_btns.append(btn)
-                with gr.Row():
-                    for example in EXAMPLE_QUERIES[3:5]:
-                        btn = gr.Button(example, size="sm")
-                        example_btns.append(btn)
-            
-            # Event handlers
-            def user_message(user_msg, history):
-                """Add user message to chat"""
-                return "", history + [[user_msg, None]]
-            
-            def bot_response(history):
-                """Get bot response and update chat"""
-                user_msg = history[-1][0]
-                bot_msg = self.chat(user_msg, history)
-                history[-1][1] = bot_msg
-                return history
-            
-            # Wire up events
-            msg.submit(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(
-                bot_response, chatbot, chatbot
-            )
-            
-            submit.click(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(
-                bot_response, chatbot, chatbot
-            )
-            
-            # Example button handlers
-            for i, btn in enumerate(example_btns):
-                example_text = EXAMPLE_QUERIES[i]
-                btn.click(
-                    lambda x=example_text: x,
-                    None,
-                    msg,
-                    queue=False
-                )
-        
+            with gr.Row(equal_height=True, elem_classes=["app_row"]):
+                # === LEFT: sidebar===
+                with gr.Column(scale=4, min_width=260):
+                    gr.Markdown(f"# {self.config['ui']['title']}")
+                    gr.Markdown(self.config['ui']['description'])
+                    gr.Markdown(welcome_md)
+                    gr.Markdown(examples_md)
+
+                # === RIGHT: ChatInterface ===
+                with gr.Column(scale=8, elem_classes=["chat_col", "chat_card"]):
+                        gr.ChatInterface(
+                            fn=self.chat,
+                            type="messages",
+                            autofocus=False,
+                            title=None,
+                            description=None,
+                            theme='JohnSmith9982/small_and_pretty',
+                            examples=EXAMPLE_QUERIES,
+                        )
+
         self.chat_interface = demo
         return demo
     
     def launch(self, **kwargs):
         """Launch the Gradio interface"""
+        import webbrowser
+        import threading
+        
         if self.chat_interface is None:
             self.build()
         
@@ -124,6 +93,7 @@ class MainWindow:
             "server_name": "0.0.0.0",
             "server_port": 7860,
             "show_error": True,
+            "inbrowser": True,
         }
         
         # Override with user settings
@@ -156,20 +126,17 @@ class MainWindow:
             return error_msg
     
     def _load_documents(self):
-        """ Load all fishing documents into the RAG pipeline """
         base_path = self.config['documents']['base_path']
         sources = self.config['documents']['sources']
-        
+
         for doc in sources:
             doc_path = os.path.join(base_path, doc)
-            
             if os.path.exists(doc_path):
                 try:
                     self.bot.load_ground_truth(doc_path)
                 except Exception as e:
-                    print("Failed to load {doc}: {e}")
+                    print(f"Failed to load {doc}: {e}")
             else:
-                print("File not found: {doc_path}")
-        
+                print(f"File not found: {doc_path}")
         print("All documents loaded")
         
