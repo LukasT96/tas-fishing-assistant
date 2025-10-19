@@ -2,7 +2,7 @@
 
 A RAG-powered Q&A system providing information about fishing regulations, species, locations, licenses, and **weather-based fishing planning** in Tasmania. Combines **Retrieval Augmented Generation (RAG)** with **Weather Tool Calling** to deliver accurate, grounded answers with fishing forecasts and trip planning.
 
-🎣 **[View Architecture Documentation](ARCHITECTURE.md)**
+🎣 **[View Architecture Documentation](architecture.md)**
 
 ---
 
