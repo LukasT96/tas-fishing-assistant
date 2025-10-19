@@ -1,15 +1,15 @@
 # LLM & AI
-groq==0.4.1
-google-genai==0.2.0
+groq
+google-genai
 
 # RAG & Embeddings
-chromadb==0.4.22
-sentence-transformers==2.3.1
+chromadb
+sentence-transformers
 
 # UI
-gradio==4.19.0
+gradio
 
 # Utilities
-python-dotenv==1.0.0
-pyyaml==6.0.1
-requests==2.31.0
+python-dotenv
+pyyaml
+requests

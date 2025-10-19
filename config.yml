@@ -8,22 +8,22 @@ llm:
     temperature: 0.3
     max_tokens: 1024
 
-  # Google Gemini settings
-  gemini:
+  # Google Germini settings
+  germini:
     model: "gemini-2.5-flash"
     temperature: 0.3
     max_tokens: 1024
 
   # Default LLM
-  default_provider: "groq"
+  default_provider: "germini"
 
 
 # RAG Settings
 rag:
   # Text chunking settings
   chunk_size: 300     # Number of words per chunk
-  chunk_overlap: 50   # Overlap between chunks
-  top_k: 3            # Number of chunks to retrieve
+  chunk_overlap: 100   # Overlap between chunks
+  top_k: 5            # Number of chunks to retrieve
 
   # Embedding model settings
   embedding:
@@ -39,10 +39,8 @@ rag:
 documents:
   base_path: "./data"
   sources:
-    - "Fishing_licences.txt"
-    - "General_Guide.txt"
-    - "Fishing_seasons.txt"
-    - "Locations.txt"
+    - "tas_fishing_guide.json"
+
 
 
 # Tool Settings
@@ -53,9 +51,7 @@ tools:
     api_key_env: "WEATHER_API_KEY"
     provider: "openweathermap"
     base_url: "https://api.openweathermap.org/data/2.5"
-  # Legal size check tool
-  legal_size_check:
-    enabled: true
+
 
 # UI Settings
 ui:

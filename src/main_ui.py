@@ -8,23 +8,27 @@ Library:
 """
 
 import os
-from typing import List, Tuple
 import gradio as gr
 import yaml
 
 from src.rag_model import RAGModel
+from src.tools_model import ToolsModel
+from src.router import Router
 from src.prompts import UI_MESSAGES, EXAMPLE_QUERIES
 
 class MainWindow:
     def __init__(self, config_path: str = "config.yml"):
         """ Initialize the chatbot application """
-        
         # Load config
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
             
         # Initialize bot
-        self.bot = RAGModel(config_path=config_path)
+        self.rag = RAGModel(config_path=config_path)
+        self.tools = ToolsModel(config_path=config_path)
+        
+        # Initialize Router
+        self.router = Router(rag_model=self.rag, tools_model=self.tools, llm_callable=self.rag.llm_call)
         
         # Load docs
         self._load_documents()
@@ -43,6 +47,7 @@ class MainWindow:
                             - **Size limits** – Legal minimum sizes  
                             - **Licenses** – Permit requirements  
                             - **Legal size checks** – Check if your catch is legal
+                            - **Weather forecast** - Check which day will be good for fishing
 
                             Ask me anything about fishing in Tasmania!
                             """
@@ -79,11 +84,9 @@ class MainWindow:
         self.chat_interface = demo
         return demo
     
+    
     def launch(self, **kwargs):
         """Launch the Gradio interface"""
-        import webbrowser
-        import threading
-        
         if self.chat_interface is None:
             self.build()
         
@@ -101,42 +104,37 @@ class MainWindow:
         
         print(f"\n🚀 Launching app on http://localhost:{launch_settings['server_port']}")
         self.chat_interface.launch(**launch_settings)
+      
         
     def chat(self, message, history) -> str:
-        """
-        Handle chat message and return response
-        
-        Args:
-            message: User's message
-            history: Chat history 
-            
-        Returns:
-            Bot's response
-        """
+        """ Handle chat message and return response """
         
         if not message.strip():
             return ""
         
         try:
             # Get response from RAG model
-            response = self.bot.query(message)
+            response = self.router.query_with_routing(message)
             return response
         except Exception as e:
-            error_msg = f"{UI_MESSAGES['error']}\n\n**Error details:** {str(e)}"
-            return error_msg
+            return UI_MESSAGES['error']
+    
     
     def _load_documents(self):
+        """ Load all fishing documents into the RAG pipeline """
         base_path = self.config['documents']['base_path']
         sources = self.config['documents']['sources']
-
+        
         for doc in sources:
             doc_path = os.path.join(base_path, doc)
+            
             if os.path.exists(doc_path):
                 try:
-                    self.bot.load_ground_truth(doc_path)
+                    self.rag.load_ground_truth(doc_path)
                 except Exception as e:
                     print(f"Failed to load {doc}: {e}")
             else:
                 print(f"File not found: {doc_path}")
+        
         print("All documents loaded")
         

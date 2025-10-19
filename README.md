@@ -1,6 +1,6 @@
 # Tasmania Fishing Information Chatbot
 
-A RAG-powered Q&A system providing information about fishing regulations, species, locations, and licenses in Tasmania. Combines **Retrieval Augmented Generation (RAG)** with **Tool Calling** to deliver accurate, grounded answers.
+A RAG-powered Q&A system providing information about fishing regulations, species, locations, licenses, and **weather-based fishing planning** in Tasmania. Combines **Retrieval Augmented Generation (RAG)** with **Weather Tool Calling** to deliver accurate, grounded answers with fishing forecasts and trip planning.
 
 🎣 **[View Architecture Documentation](ARCHITECTURE.md)**
 
@@ -25,10 +25,10 @@ A RAG-powered Q&A system providing information about fishing regulations, specie
 
 ## Overview
 
-The Tasmania Fishing Assistant is an intelligent question-answering system that helps users understand fishing regulations and legal requirements in Tasmania. It uses:
+The Tasmania Fishing Assistant is an intelligent question-answering system that helps users understand fishing regulations, plan fishing trips, and check weather conditions in Tasmania. It uses:
 
 1. **RAG (Retrieval Augmented Generation)**: Searches ~20 pages of official fishing documents to answer regulatory questions
-2. **Tool Calling**: Uses a legal size checker to verify if caught fish meet minimum size requirements
+2. **Weather Tool Calling**: Provides multi-day weather forecasts with fishing condition assessments and trip planning recommendations
 3. **Prompt-Driven Routing**: An LLM-based router (no hard-coded rules) intelligently decides when to use documents, tools, or both
 
 The system **always grounds its answers** by citing sources from documents or displaying tool results.
@@ -38,7 +38,8 @@ The system **always grounds its answers** by citing sources from documents or di
 ## Features
 
 ✅ **RAG over Official Documents**: Searches fishing regulations, license info, species guides, and location data  
-✅ **Legal Size Verification Tool**: Check if your catch meets minimum legal size  
+✅ **5-Day Weather Forecasts**: Get detailed weather forecasts with fishing quality scores  
+✅ **Fishing Trip Planning**: Find the best days to fish based on weather conditions  
 ✅ **Intelligent Routing**: LLM decides whether to use RAG, tools, or both  
 ✅ **Grounded Answers**: All responses cite sources or tool results  
 ✅ **Error Handling**: Never crashes - gracefully handles failures  
@@ -49,21 +50,21 @@ The system **always grounds its answers** by citing sources from documents or di
 
 ## Target Users
 
-- 🎣 Recreational fishermen in Tasmania
-- ✈️ Tourists planning fishing trips
+- 🎣 Recreational fishermen in Tasmania planning trips
+- ✈️ Tourists scheduling fishing activities
 - 📋 Anyone needing quick access to fishing regulations
-- 🐟 Anglers wanting to verify legal catch sizes
+- 🌤️ Anglers wanting weather-optimized fishing plans
 
 ---
 
 ## Knowledge Base
 
-The system uses **~20 pages** of official documentation:
+The system uses **~20 pages** of official documentation (`tas_fishing_guide.json`) includes following section:
 
-- **Fishing_licences.txt**: License types, fees, requirements
-- **General_Guide.txt**: Comprehensive fishing regulations (bag limits, size limits, seasons)
-- **Fishing_seasons.txt**: Seasonal closures and restrictions
-- **Locations.txt**: Fishing location information
+- **Fishing_licences**: License types, fees, requirements
+- **Species**: Comprehensive fishing regulations (bag limits, size limits, seasons)
+- **Fishing_seasons**: Seasonal closures and restrictions
+- **Hot_fishing_spots**: Fishing location information
 
 Documents are chunked (300 words, 50-word overlap) and embedded using `all-MiniLM-L6-v2`.
 
@@ -71,25 +72,36 @@ Documents are chunked (300 words, 50-word overlap) and embedded using `all-MiniL
 
 ## Tools
 
-### Legal Size Checker
+### Weather Forecast & Trip Planning Tool
 
-Verifies if caught fish meet minimum legal size requirements. The system **dynamically loads** species data from `tas_fishing_species.json`, making it easy to add new species without code changes.
+Provides **5-day weather forecasts** with fishing condition assessments for Tasmania locations. The system uses OpenWeatherMap API to deliver:
 
-**Currently Supports 17+ Species**, including:
+**Features**:
+- **Multi-day forecasts** (1-5 days ahead)
+- **Fishing quality scores** (0-10 scale) for each day
+- **Best fishing day recommendations** based on conditions
+- **Detailed weather metrics**: temperature, wind speed, rainfall, humidity
+- **Trip planning suggestions** for optimal fishing times
 
-| Species | Minimum Size |
-|---------|--------------|
-| Brown Trout | 25 cm |
-| Rainbow Trout | 25 cm |
-| Atlantic Salmon | 30 cm |
-| Rock Lobster (Southern/Eastern) | 11 cm (carapace) |
-| Abalone (Blacklip) | 12 cm (shell) |
-| Abalone (Greenlip) | 13.2 cm (shell) |
-| Sand Flathead | 35 cm |
+**Fishing Score Calculation**:
+The system scores each day based on:
+- **Temperature** (ideal: 10-25°C) - up to 4 points
+- **Wind Speed** (ideal: < 15 km/h) - up to 3 points  
+- **Rainfall** (ideal: < 2mm) - up to 3 points
 
-**Adding New Species**: Simply update the `"Minimum size"` field in `tas_fishing_species.json` - no code changes needed!
+**Score Ratings**:
+- **8-10**: Excellent 🎣✨
+- **6-7**: Good 🎣
+- **4-5**: Fair ⚠️
+- **0-3**: Poor ❌
 
-**Usage**: Ask questions like "Is a 28cm brown trout legal to keep?"
+**Supported Locations**: All major Tasmania fishing locations (Hobart, Launceston, Strahan, Bicheno, St Helens, etc.)
+
+**Usage Examples**:
+- "What's the weather forecast for fishing in Hobart this week?"
+- "When is the best day to fish in St Helens over the next 5 days?"
+- "Should I plan a fishing trip to Strahan this weekend?"
+- "What are the fishing conditions in Bicheno for the next 3 days?"
 
 ---
 
@@ -98,8 +110,9 @@ Verifies if caught fish meet minimum legal size requirements. The system **dynam
 - **LLMs**: Groq (Llama 3.3 70B Versatile) / Google Gemini 2.0 Flash
 - **Vector DB**: ChromaDB (in-memory)
 - **Embeddings**: sentence-transformers (`all-MiniLM-L6-v2`)
+- **Weather API**: OpenWeatherMap API (free tier, 5-day forecast)
 - **UI**: Gradio (chat interface)
-- **Routing**: Prompt-driven LLM routing (no hard-coded rules)
+- **Routing**: Prompt-driven LLM routing 
 - **Language**: Python 3.9+
 
 ---
@@ -114,20 +127,20 @@ The system uses **prompt-driven routing** with no hard-coded if/else statements:
    {
      "needs_rag": true/false,
      "needs_tool": true/false,
-     "tool_name": "check_legal_size",
-     "tool_params": {"species": "brown trout", "length_cm": 28},
-     "reasoning": "User wants to verify legal size"
+     "tool_name": "get_fishing_weather",
+     "tool_params": {"location": "Hobart", "days": 5},
+     "reasoning": "User wants weather forecast for trip planning"
    }
    ```
 3. **System executes based on decision**:
    - **RAG only**: Search documents and generate answer
-   - **Tool only**: Call tool and return result
+   - **Tool only**: Call weather tool and return forecast
    - **Both**: Retrieve documents + call tool, then generate combined answer
 
 **Decision Guidelines** (from prompt):
 - Questions about regulations, species info, locations, licenses → **RAG**
-- Questions like "is X cm legal" or "can I keep this fish" → **Tool**
-- Questions combining both → **RAG + Tool**
+- Questions about weather, forecasts, trip planning → **Weather Tool**
+- Questions combining both (e.g., "best location to fish this week") → **RAG + Weather Tool**
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
@@ -137,7 +150,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
 ### Prerequisites
 - Python 3.9+
-- API keys for Groq and Google Gemini
+- API keys for Groq, Google Gemini, and OpenWeatherMap
 
 ### Getting API Keys
 
@@ -152,8 +165,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
    - Copy and save the key in .env
 
 3. **Weather API Key**:
-   - Go to [OpenWeathermap](https://openweathermap.org/api)
-   - Click "Get API Key" and create a new key
+   - Go to [OpenWeatherMap](https://openweathermap.org/api)
+   - Sign up for a free account
+   - Navigate to "API Keys" and copy your key
+   - Free tier includes 5-day forecasts (perfect for fishing planning)
    - Copy and save the key in .env
 
 ### Installation Steps
@@ -189,7 +204,7 @@ Create a file named `.env` in the root directory:
 ```bash
 GROQ_API_KEY=your_groq_key_here
 GOOGLE_API_KEY=your_gemini_key_here
-WEATHER_API_KEY=your_weather_key_here
+WEATHER_API_KEY=your_openweathermap_key_here
 ```
 
 **5. Run the application:**
@@ -223,78 +238,136 @@ Licence Fees (2025-2026):
 
 ---
 
-### Example 2: Tool-Only Query
+### Example 2: Weather Tool-Only Query
 
-**User**: "Is a 28cm brown trout legal to keep?"
+**User**: "What's the weather forecast for fishing in Hobart this week?"
 
 **System Response**:
 ```
-✅ LEGAL TO KEEP
+🌤️ 5-DAY FISHING FORECAST - HOBART
 
-• Species: Brown Trout
-• Your catch: 28 cm
-• Legal minimum: 25 cm
-• Over limit by: 3.0 cm
+📅 Monday, Oct 20, 2025
+• Temperature: 16°C (max 18°C, min 14°C)
+• Wind: 12 km/h
+• Rain: 0mm
+• Conditions: Partly cloudy
+• Fishing Score: 9/10 - Excellent 🎣✨
 
-This fish meets the legal size requirement and may be kept 
-(subject to bag limits).
+📅 Tuesday, Oct 21, 2025
+• Temperature: 15°C (max 17°C, min 13°C)
+• Wind: 18 km/h
+• Rain: 2mm
+• Conditions: Light rain
+• Fishing Score: 7/10 - Good 🎣
+
+... [3 more days] ...
+
+🎯 BEST FISHING DAY: Monday, Oct 20
+Excellent conditions with light winds and no rain expected!
+
+📊 OVERALL OUTLOOK: Great week ahead for fishing!
+
+🔧 Tool: Weather Forecast API
 ```
 
-**Routing Decision**: Tool only (legal size checker called)
+**Routing Decision**: Tool only (weather forecast)
 
 ---
 
-### Example 3: RAG + Tool Query
+### Example 3: RAG + Weather Tool Query
 
-**User**: "I caught a 32cm Atlantic salmon, can I keep it? What's the bag limit?"
+**User**: "I want to fish for flathead this week - where should I go and when are the best conditions?"
 
 **System Response**:
 ```
-✅ LEGAL TO KEEP
+🎣 FLATHEAD FISHING PLAN
 
-• Species: Atlantic Salmon
-• Your catch: 32 cm
-• Legal minimum: 30 cm
-• Over limit by: 2.0 cm
+BEST LOCATIONS (from regulations):
+• Sand flathead are commonly found in estuaries and coastal waters
+• Popular spots include [locations from documents]
+• Bag limit: 10 per person
+• Minimum size: 35cm
 
-Your 32cm Atlantic salmon exceeds the minimum legal size and may be kept.
+📚 Source: General_Guide (chunk 28), Locations (chunk 15)
 
-Bag Limit: According to the regulations, the daily bag limit for 
-Atlantic salmon is [specific limit from documents].
+🌤️ WEATHER FORECAST & BEST DAYS:
 
-📚 Source: General_Guide (chunk 45)
-🔧 Tool: Legal Size Checker
+📅 BEST DAY: Wednesday, Oct 22 (Score: 8/10 - Excellent 🎣✨)
+• Temperature: 17°C, Wind: 10 km/h, Rain: 0mm
+• Conditions: Clear skies
+
+📅 ALSO GOOD: Thursday, Oct 23 (Score: 7/10 - Good 🎣)
+• Temperature: 16°C, Wind: 15 km/h, Rain: 1mm
+• Conditions: Partly cloudy
+
+🎯 RECOMMENDATION:
+Plan your flathead fishing trip for Wednesday in calm estuaries. 
+Perfect weather conditions with light winds and clear skies!
+
+📚 Sources: General_Guide, Locations
+🔧 Tool: Weather Forecast API
 ```
 
-**Routing Decision**: RAG + Tool (documents for bag limit, tool for size verification)
+**Routing Decision**: RAG + Weather Tool (documents for species/location info, tool for weather planning)
+
+---
+
+### Example 4: Trip Planning Query
+
+**User**: "Should I plan a fishing trip to Strahan this weekend?"
+
+**System Response**:
+```
+🌤️ WEEKEND FISHING CONDITIONS - STRAHAN
+
+📅 Saturday, Oct 25
+• Temperature: 14°C, Wind: 25 km/h, Rain: 8mm
+• Fishing Score: 4/10 - Fair ⚠️
+• Conditions: Moderate rain and strong winds expected
+
+📅 Sunday, Oct 26
+• Temperature: 15°C, Wind: 20 km/h, Rain: 3mm
+• Fishing Score: 6/10 - Good 🎣
+• Conditions: Improving - light rain, winds easing
+
+🎯 RECOMMENDATION:
+Sunday looks more promising than Saturday. If flexible, consider 
+early next week when conditions are forecast to improve further.
+
+Best fishing day in the next 5 days: Tuesday, Oct 28 (Score: 9/10)
+
+🔧 Tool: Weather Forecast API
+```
+
+**Routing Decision**: Weather Tool only
 
 ---
 
 ## Evaluation Results
 
-### Passing Tests (Baseline)
+### Passing Tests (Updated with Weather Focus)
 
-Tested with **7 ground truth questions** covering RAG, Tool, and Both scenarios:
+Tested with **8 ground truth questions** covering RAG, Weather Tool, and Combined scenarios:
 
-| Test ID | Type | Question | Result |
-|---------|------|----------|--------|
-| P1 | RAG | "What are the bag limits for sand flathead?" | ✅ Pass |
-| P2 | Tool | "Is a 28cm brown trout legal to keep?" | ✅ Pass |
-| P3 | RAG | "What fishing licence do I need for rock lobster?" | ✅ Pass |
-| P4 | Both | "I caught a 32cm Atlantic salmon, can I keep it?" | ✅ Pass |
-| P5 | RAG | "What is the bag limit for abalone and what size must they be?" | ✅ Pass |
-| P6 | Tool | "Can I keep a 24cm rainbow trout?" | ✅ Pass |
-| P7 | RAG | "When does the squid spawning closure start on the north coast?" | ✅ Pass |
+| Test ID | Question Type | Status | Notes |
+|---|---|---|---|
+| P1 | RAG | ✅ Pass | Correct answer and citation |
+| P2 | RAG | ✅ Pass | Licence requirement correctly identified |
+| P3 | RAG | ✅ Pass | Comprehensive regions listed |
+| P4 | Tool | ✅ Pass | Accurate single‑day forecast with score |
+| P5 | Tool | ✅ Pass | Ranked 5‑day outlook with recommendation |
+| P6 | RAG | ✅ Pass | Correct legal‑size reasoning across species |
+| P7 | RAG & Tool | ✅ Pass | Species + 5‑day forecast + local rules |
+| P8 | RAG & Tool | ✅ Pass | Flathead rules + 5‑day forecast |
 
 **Success Rate**: 7/7 (100%) - All passing baseline questions answered correctly with proper citations/tool results.
 
 ### Difficult Questions (Known Limitations)
 
-| Test ID | Question | Failure Mode | Analysis |
-|---------|----------|--------------|----------|
-| D1 | "What's the best bait for flathead in winter?" | Out of Scope | Documents don't contain fishing techniques/bait info |
-| D2 | "I caught a 15cm bream, is it legal?" | Tool Limitation | Bream not in legal size tool's species list |
-| D3 | "Can I use my wife's unused abalone quota?" | Complex Regulation | Multi-part regulatory question requiring nuanced interpretation |
+| Test ID | Failure Type | Expected Behavior | Actual Behavior | Status |
+|---|---|---|---|---|
+| D1 | Out of Scope | Recognise info unavailable | Correctly identified | ✅ Pass |
+| D2 | Complex Regulation | May struggle | Retrieved and synthesised correctly | ✅ Pass |
 
 **Run Evaluation**:
 ```bash
@@ -309,43 +382,51 @@ Results saved to `evaluation_results.json`.
 
 ### Current Limitations
 
-1. **Limited Tool Species**
-   - Legal size checker supports 17+ species (dynamically loaded from JSON)
-   - Species with no minimum size in data not covered (e.g., bream, many reef fish)
-   - **Mitigation**: System gracefully returns "species not supported" message with list of available species
-   - **Easy to Expand**: Add new species by updating `tas_fishing_species.json` - no code changes needed
+1. **Weather Forecast Scope**
+   - Limited to 5-day forecasts (OpenWeatherMap free tier)
+   - Daily summaries only (no hourly breakdowns)
+   - No historical weather data
+   - **Mitigation**: System clearly states forecast range and suggests checking official sources for extended forecasts
 
-2. **Document Coverage Gaps**
+2. **No Tide Information**
+   - Weather tool doesn't include tide times or heights
+   - Important factor for coastal fishing not covered
+   - **Future Enhancement**: Integrate tide prediction API
+
+3. **Document Coverage Gaps**
    - Documents focus on regulations, not fishing techniques or local knowledge
-   - No real-time information (weather, tide, current conditions)
+   - No information about bait, tackle, or fishing methods
    - **Mitigation**: System clearly states when information is not available
 
-3. **Complex Multi-Part Questions**
-   - Struggles with questions requiring multiple reasoning steps
-   - May not properly interpret nuanced regulatory edge cases
-   - **Mitigation**: Encourages users to verify with official sources
+4. **Location Coverage**
+   - Weather API requires known location names
+   - May not recognize very small towns or specific fishing spots
+   - **Mitigation**: Returns error with suggestion to try nearby major towns
 
-4. **No Conversation History**
+5. **No Conversation History**
    - Each query is processed independently
    - Cannot reference previous questions in conversation
    - **Future Enhancement**: Add conversation memory
 
-5. **Retrieval Quality**
+6. **Retrieval Quality**
    - Top-K=3 may miss relevant information in longer documents
    - No re-ranking of retrieved chunks
    - **Future Enhancement**: Implement hybrid search and re-ranking
 
-6. **LLM Hallucination Risk**
+7. **LLM Hallucination Risk**
    - Despite grounding instructions, LLM may occasionally add unsupported details
    - **Mitigation**: Strong prompts emphasizing "ONLY use provided context"
 
 ### Out of Scope
 
 The system **does not** provide:
-- ❌ Fishing spot recommendations based on conditions
+- ❌ Hourly weather forecasts
+- ❌ Tide times and predictions
+- ❌ Moon phase information
 - ❌ Bait or fishing technique advice
 - ❌ Species identification from images
 - ❌ License purchase functionality (links to official sites only)
+- ❌ Real-time marine conditions (swell, sea temperature)
 
 ---
 
@@ -366,14 +447,11 @@ tas-fishing-assistant/
 │   ├── main_ui.py          # Gradio UI controller
 │   ├── rag_model.py        # Main RAG pipeline and orchestration
 │   ├── router.py           # LLM-based routing logic
-│   ├── tools_model.py      # Tool implementations (legal size checker)
+│   ├── tools_model.py      # Tool implementations (weather forecast)
 │   └── prompts.py          # All system prompts and tool descriptions
 │
 ├── data/
-│   ├── Fishing_licences.txt
-│   ├── General_Guide.txt
-│   ├── Fishing_seasons.txt
-│   └── Locations.txt
+│   ├── tas_fishing_guide.json
 │
 └── static/
     └── style.css           # UI styling
@@ -385,7 +463,7 @@ tas-fishing-assistant/
 - **`config.yml`**: Model settings (LLM, embedding), RAG config (chunk size, top-k), tool settings
 - **`router.py`**: Prompt-driven routing logic (no hard-coded rules)
 - **`rag_model.py`**: Complete RAG pipeline and answer generation
-- **`tools_model.py`**: Tool implementations with error handling
+- **`tools_model.py`**: Weather forecast tool implementation with error handling
 - **`evaluation.py`**: Ground truth tests and failure analysis
 
 ---
@@ -399,10 +477,9 @@ python evaluation.py
 ```
 
 This will:
-1. Run 7 passing baseline tests (RAG, Tool, Both)
-2. Run 3 difficult tests (known failure cases)
+1. Run 8 passing baseline tests (RAG, Weather Tool, Combined)
+2. Run 2 difficult tests (known failure cases)
 3. Verify routing decisions, tool calls, and retrieved citations
-4. Generate `evaluation_results.json` with detailed results
 
 ---
 
@@ -410,21 +487,23 @@ This will:
 
 Potential improvements identified during evaluation:
 
-1. **Expand Tool Coverage**: Supports 17+ species via dynamic JSON loading
-2. **Weather API Integration**: Already scaffolded in `tools_model.py`
-3. **Hybrid Search**: Combine semantic + keyword search for better retrieval
-4. **Re-ranking**: Re-rank retrieved chunks using cross-encoder
-5. **Conversation Memory**: Support multi-turn conversations
-6. **Query Expansion**: Generate multiple query variations for better recall
-7. **User Feedback Loop**: Allow users to rate answers and report errors
+1. **Tide Prediction Tool**: Integrate tide API for coastal fishing planning
+2. **Extended Forecasts**: Support 7-14 day forecasts (requires paid API tier)
+3. **Hourly Breakdowns**: Add hourly weather data for same-day planning
+4. **Moon Phase Data**: Include moon phase for species that are moon-sensitive
+5. **Marine Conditions**: Add swell height, sea temperature, water clarity
+6. **Hybrid Search**: Combine semantic + keyword search for better retrieval
+7. **Re-ranking**: Re-rank retrieved chunks using cross-encoder
+8. **Conversation Memory**: Support multi-turn conversations
+9. **User Feedback Loop**: Allow users to rate forecast accuracy
 
 ---
 
 ## Contributing
 
 Contributions welcome! This project can serve as:
-- A portfolio piece demonstrating RAG + Tool integration
-- A foundation for other QA systems in different domains
+- A portfolio piece demonstrating RAG + Weather Tool integration
+- A foundation for other location-based planning systems
 - A teaching example of prompt-driven architecture
 
 ---
@@ -435,6 +514,8 @@ This project is for educational purposes. Fishing regulations are sourced from o
 
 **Disclaimer**: Always verify fishing regulations with official sources at [https://ifs.tas.gov.au/](https://ifs.tas.gov.au/)
 
+Weather forecasts are provided by OpenWeatherMap and should be verified with official meteorological services.
+
 ---
 
 ## Contact
@@ -442,4 +523,3 @@ This project is for educational purposes. Fishing regulations are sourced from o
 For questions or issues, please open a GitHub issue or contact the maintainer.
 
 **Repository**: [https://github.com/LukasT96/tas-fishing-assistant](https://github.com/LukasT96/tas-fishing-assistant)
-

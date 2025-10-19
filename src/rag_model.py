@@ -5,6 +5,7 @@ Implementation of RAG: Retrieve information from documents (source of truth)
 """
 
 import os
+import json
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Fix tokenizer warning
 import yaml
 from groq import Groq
@@ -12,10 +13,8 @@ from google import genai
 from dotenv import load_dotenv
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
-from typing import List, Dict, Tuple, Optional
+from typing import List, Tuple, Dict
 
-from src.prompts import SYSTEM_PROMPT, ROUTING_PROMPT, RAG_ANSWER_PROMPT, TOOL_INTEGRATION_PROMPT
-from src.router import Router
 from src.tools_model import ToolsModel
 
 class RAGModel:
@@ -23,86 +22,257 @@ class RAGModel:
         # Load env variables from .env file
         load_dotenv()
         
+        
         # Load configuration
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
+        
         # Get API keys from environment
         groq_api_key = os.getenv("GROQ_API_KEY")
         gemini_api_key = os.getenv("GOOGLE_API_KEY")
-
+        
         if not groq_api_key or not gemini_api_key:
             raise ValueError("API keys not found in .env file")
-
-        # Set default provider from config
-        self.default_provider = self.config['llm'].get('default_provider', 'groq')
-
+        
+        
         # Initialize clients
         self.groq_client = Groq(api_key=groq_api_key)
         self.gemini_client = genai.Client(api_key=gemini_api_key)
-
+        
+        self.default_provider = self.config['llm']['default_provider']
+        
+        
+        # Tools calling
+        self.tools = ToolsModel(config_path=config_path)
+        
+        
         # Initialize ChromaDB
         self.chroma_client = chromadb.Client()
-        self.embedding_function = SentenceTransformerEmbeddingFunction(
-            model_name=self.config['rag']['embedding']['model']
-        )
-
+        self.embedding_function = SentenceTransformerEmbeddingFunction(model_name=self.config['rag']['embedding']['model'])
+        
+        
         # Create or get collection
         self.collection = self.chroma_client.get_or_create_collection(
             name=self.config['rag']['vector_db']['name'],
             embedding_function=self.embedding_function
         )
         
-        # Initialize router and tools
-        self.router = Router(config_path=config_path)
-        self.tools = ToolsModel(config_path=config_path)
-        
     
     def load_ground_truth(self, file_path: str, source_name: str = None) -> int:
-        """Load a document as ground truth"""
+        """
+        Load JSON document and prepare it for chunking
+        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
+        if not file_path.endswith('.json'):
+            raise ValueError(f"Only JSON files are supported. Got: {file_path}")
         
+        # Load JSON data
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # Extract source name
         if source_name is None:
             source_name = os.path.splitext(os.path.basename(file_path))[0]
         
-        # Get chunk settings from config
+        # Get chunk settings
         chunk_size = self.config['rag']['chunk_size']
         chunk_overlap = self.config['rag']['chunk_overlap']
         
-        chunks = self.chunk_text(text, chunk_size=chunk_size, overlap=chunk_overlap)
-        self.upsert_source(chunks, source_name)
+        total_chunks = 0
         
-        return len(chunks)
+        # Process each section separately
+        for section_name, section_content in data.items():
+            # Convert JSON to readable text
+            section_text = self._json_to_text(section_content, section_name)
+            
+            # Chunk the text
+            chunks = self.chunk_text(section_text, chunk_size, chunk_overlap)
+            
+            # Upsert to vector database
+            self.upsert(chunks, source_name, section_name)
+            
+            total_chunks += len(chunks)
+        
+        print(f"✅ Loaded {total_chunks} chunks from {source_name} across {len(data)} sections")
+        return total_chunks
+     
+    
+    def _json_to_text(self, content, section_name: str) -> str:
+        """Helper: Convert JSON section to readable text format"""
+        if isinstance(content, dict):
+            lines = [f"=== {section_name.upper().replace('_', ' ')} ===\n"]
+            
+            for key, value in content.items():
+                if isinstance(value, dict):
+                    lines.append(f"\n{key.replace('_', ' ').title()}:")
+                    for sub_key, sub_value in value.items():
+                        lines.append(f"  • {sub_key.replace('_', ' ')}: {sub_value}")
+                elif isinstance(value, list):
+                    lines.append(f"\n{key.replace('_', ' ').title()}:")
+                    for item in value:
+                        if isinstance(item, dict):
+                            for k, v in item.items():
+                                lines.append(f"  • {k.replace('_', ' ')}: {v}")
+                        else:
+                            lines.append(f"  • {item}")
+                else:
+                    lines.append(f"{key.replace('_', ' ').title()}: {value}")
+            
+            return "\n".join(lines)
     
     
     def chunk_text(self, text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]:
-        """Split text into chunks"""
+        """
+        Split text into overlapping chunks
+        """
         words = text.split()
         chunks = []
         i = 0
+        
         while i < len(words):
-            chunks.append(" ".join(words[i:i + chunk_size]))
+            chunk = " ".join(words[i:i + chunk_size])
+            chunks.append(chunk)
             i += max(1, chunk_size - overlap)
+        
         return chunks
     
-    def upsert_source(self, chunks: List[str], source_name: str):
-        """Add chunks to ChromaDB"""
-        ids = [f"{source_name}:{i}" for i in range(len(chunks))]
-        metas = [{"source": source_name, "chunk_id": i} for i in range(len(chunks))]
-        self.collection.upsert(ids=ids, documents=chunks, metadatas=metas)
+    
+    def upsert(self, chunks: List[str], source_name: str, section_name: str):
+        """
+        Add chunks to ChromaDB with metadata
+        """
+        # Create unique IDs
+        ids = [f"{source_name}:{section_name}:{i}" for i in range(len(chunks))]
+        
+        # Create metadata for each chunk
+        metadatas = [
+            {
+                "source": source_name,
+                "chunk_id": i,
+                "section": section_name,
+                "topics": self._extract_topics(chunk, section_name)
+            }
+            for i, chunk in enumerate(chunks)
+        ]
+        
+        # Upsert to ChromaDB
+        self.collection.upsert(
+            ids=ids,
+            documents=chunks,
+            metadatas=metadatas
+        )
 
-    def search(self, query: str, k: int = None) -> List[Tuple]:
-        """Search for relevant chunks"""
+
+    def _extract_topics(self, chunk: str, section: str) -> str:
+        """Helper: Extract key topics from chunk for better filtering"""
+        chunk_lower = chunk.lower()
+        topics = [section]  # Always include section as primary topic
+        
+        # Section-specific topic extraction
+        if section == 'fishing_licence':
+            if 'freshwater' in chunk_lower:
+                topics.append('freshwater')
+            if 'saltwater' in chunk_lower or 'marine' in chunk_lower:
+                topics.append('saltwater')
+            if 'recreational' in chunk_lower:
+                topics.append('recreational')
+        
+        elif section == 'species':
+            species_keywords = ['trout', 'salmon', 'flathead', 'bream', 'tuna']
+            topics.extend([s for s in species_keywords if s in chunk_lower])
+            
+            if 'bag limit' in chunk_lower:
+                topics.append('bag_limit')
+            if 'size limit' in chunk_lower:
+                topics.append('size_limit')
+        
+        elif section == 'fishing_seasons':
+            if 'open' in chunk_lower:
+                topics.append('open_season')
+            if 'closed' in chunk_lower:
+                topics.append('closed_season')
+        
+        elif section == 'hot_fishing_spots':
+            # Extract region names
+            regions = ['derwent', 'east coast', 'st helens', 'bruny', 'entrecasteaux',
+                    'tasman', 'flinders', 'tamar', 'devonport', 'port sorell',
+                    'north west', 'king island', 'macquarie', 'hobart']
+            topics.extend([r for r in regions if r in chunk_lower])
+            
+            # Extract location types
+            location_types = ['lake', 'river', 'creek', 'dam', 'beach', 'bay', 
+                            'jetty', 'wharf', 'coast', 'peninsula', 'island']
+            topics.extend([loc for loc in location_types if loc in chunk_lower])
+            
+            # Extract species mentions in location context
+            species_in_spots = ['salmon', 'flathead', 'bream', 'snapper', 'whiting', 
+                            'calamari', 'squid', 'barracouta', 'kingfish']
+            topics.extend([s for s in species_in_spots if s in chunk_lower])
+            
+            # Extract fishing methods/access
+            if 'shore' in chunk_lower:
+                topics.append('shore_fishing')
+            if 'boat' in chunk_lower:
+                topics.append('boat_fishing')
+        
+        return ','.join(topics)
+
+
+    def search(self, query: str, k: int = None, filter_metadata: Dict = None) -> List[Tuple]:
+        """
+        Search for relevant chunks with optional filtering
+        """
         if k is None:
             k = self.config['rag']['top_k']
         
-        r = self.collection.query(query_texts=[query], n_results=k)
-        return list(zip(r["ids"][0], r["documents"][0], r["metadatas"][0]))
+        # Auto-detect section filter if not provided
+        if filter_metadata is None:
+            filter_metadata = self._create_query_filter(query)
+        
+        # Query ChromaDB
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=k,
+            where=filter_metadata
+        )
+        
+        # Return as list of tuples
+        return list(zip(
+            results["ids"][0],
+            results["documents"][0],
+            results["metadatas"][0]
+        ))
     
+    
+    def _create_query_filter(self, query: str) -> Dict:
+        """Helper: Auto-detect which section to search based on query"""
+        query_lower = query.lower()
+        
+        # License queries
+        if any(word in query_lower for word in ['license', 'licence', 'permit', 'need to fish']):
+            return {"section": "fishing_licence"}
+        
+        # Species/limit queries
+        if any(word in query_lower for word in ['bag limit', 'size limit', 'legal size', 'can i keep']):
+            return {"section": "species"}
+        
+        # Season queries
+        if any(word in query_lower for word in ['season', 'when', 'open', 'closed']):
+            return {"section": "fishing_seasons"}
+        
+        # Location queries
+        if any(word in query_lower for word in ['where', 'location', 'spot', 'lake', 'river', 
+                                                'beach', 'bay', 'jetty', 'fishing spot', 
+                                                'good place', 'best place', 'catch at']):
+            return {"section": "hot_fishing_spots"}
+        
+        # No filter - search all sections
+        return None
+    
+   
     def llm_call(self, prompt: str, use_groq: bool = None) -> str:
         """Call LLM with prompt"""
         if use_groq is None:
@@ -118,150 +288,11 @@ class RAGModel:
             return response.choices[0].message.content
         else:
             response = self.gemini_client.models.generate_content(
-                model=self.config['llm']['gemini']['model'],
+                model=self.config['llm']['germini']['model'],
                 contents=prompt
             )
             return response.text
     
-    def query(self, question: str, show_routing: bool = False) -> str:
-        """
-        Main query method - processes user question using router and tools.
-        
-        Args:
-            question: User's question
-            show_routing: Whether to include routing explanation in response
-            
-        Returns:
-            Answer string with citations and/or tool results
-        """
-        
-        try:
-            # Step 1: Route the query
-            routing_decision = self.router.route(question)
-            
-            context = ""
-            retrievals = []
-            tool_result = None
-            
-            # Step 2: Execute based on routing decision
-            
-            # 2a. Retrieve from documents if needed
-            if routing_decision['needs_rag']:
-                retrievals = self.search(question)
-                
-                if retrievals:
-                    # Format context with clear citations
-                    context = self._format_context_with_citations(retrievals)
-                else:
-                    context = "[No relevant documents found]"
-            
-            # 2b. Call tool if needed
-            if routing_decision['needs_tool']:
-                tool_name = routing_decision.get('tool_name')
-                tool_params = routing_decision.get('tool_params', {})
-                
-                if tool_name and tool_params:
-                    tool_result = self.tools.call_tool(tool_name, **tool_params)
-                else:
-                    tool_result = {
-                        "success": False,
-                        "error": "Missing tool name or parameters",
-                        "message": "Could not determine which tool to use or what parameters to provide."
-                    }
-            
-            # Step 3: Generate final answer
-            answer = self._generate_answer(question, context, tool_result, routing_decision)
-            
-            # Optionally add routing explanation
-            if show_routing:
-                routing_explanation = self.router.explain_routing(routing_decision)
-                answer = f"**[Routing Decision]**\n{routing_explanation}\n\n---\n\n{answer}"
-            
-            return answer
-            
-        except Exception as e:
-            return f"An error occurred while processing your question.\n\n**Error:** {str(e)}\n\nPlease try rephrasing your question or contact support."
-    
-    def _format_context_with_citations(self, retrievals: List[Tuple]) -> str:
-        """
-        Format retrieved documents with clear citations.
-        
-        Args:
-            retrievals: List of (id, document, metadata) tuples
-            
-        Returns:
-            Formatted context string with citations
-        """
-        context_parts = []
-        
-        for idx, (doc_id, doc_text, meta) in enumerate(retrievals, 1):
-            source = meta.get('source', 'Unknown')
-            chunk_id = meta.get('chunk_id', '?')
-            
-            citation = f"[{idx}] Source: {source} (chunk {chunk_id})"
-            context_parts.append(f"{citation}\n{doc_text}")
-        
-        return "\n\n---\n\n".join(context_parts)
-    
-    def _generate_answer(self, question: str, context: str, tool_result: Optional[Dict], routing_decision: Dict) -> str:
-        """
-        Generate final answer based on available information.
-        
-        Args:
-            question: User's question
-            context: Retrieved document context (may be empty)
-            tool_result: Tool execution result (may be None)
-            routing_decision: Router's decision
-            
-        Returns:
-            Final answer string
-        """
-        
-        # Case 1: Both RAG and Tool
-        if routing_decision['needs_rag'] and routing_decision['needs_tool'] and tool_result:
-            if tool_result.get('success', False):
-                tool_message = tool_result.get('message', str(tool_result))
-                
-                prompt = TOOL_INTEGRATION_PROMPT.format(
-                    query=question,
-                    context=context if context and context != "[No relevant documents found]" else "No additional context from documents.",
-                    tool_result=tool_message
-                )
-            else:
-                # Tool failed, fall back to RAG only
-                prompt = RAG_ANSWER_PROMPT.format(
-                    query=question,
-                    context=context if context else "No relevant information found in documents."
-                )
-        
-        # Case 2: Tool only
-        elif routing_decision['needs_tool'] and tool_result:
-            if tool_result.get('success', False):
-                # Return tool result directly with minimal LLM processing
-                tool_message = tool_result.get('message', str(tool_result))
-                return tool_message
-            else:
-                # Tool failed
-                error_msg = tool_result.get('message', 'Tool execution failed')
-                return error_msg
-        
-        # Case 3: RAG only
-        elif routing_decision['needs_rag'] and context:
-            if context == "[No relevant documents found]":
-                return "I don't have information about that in my knowledge base. Please check the official Inland Fisheries Service Tasmania website at https://ifs.tas.gov.au/"
-            
-            prompt = RAG_ANSWER_PROMPT.format(
-                query=question,
-                context=context
-            )
-        
-        # Case 4: Nothing available
-        else:
-            return "I'm not sure how to answer that question. Could you please rephrase it or provide more details?"
-        
-        # Generate answer using LLM
-        answer = self.llm_call(prompt)
-        return answer
     
     def verify_retrieval(self, citation: str, retrievals: List[Tuple]) -> bool:
         """
@@ -274,3 +305,5 @@ class RAGModel:
         
         print("Citation NOT found in retrieved results")
         return False
+
+
