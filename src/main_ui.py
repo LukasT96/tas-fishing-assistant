@@ -63,7 +63,7 @@ class MainWindow:
         ) as demo:
             with gr.Row(equal_height=True, elem_classes=["app_row"]):
                 # === LEFT: sidebar===
-                with gr.Column(scale=4, min_width=260):
+                with gr.Column(scale=4, min_width=260, elem_classes=["left_col"]):
                     gr.Markdown(f"# {self.config['ui']['title']}")
                     gr.Markdown(self.config['ui']['description'])
                     gr.Markdown(welcome_md)
@@ -71,7 +71,14 @@ class MainWindow:
 
                 # === RIGHT: ChatInterface ===
                 with gr.Column(scale=8, elem_classes=["chat_col", "chat_card"]):
-                        gr.ChatInterface(
+                    # Small info button (shows welcome modal on mobile)
+                    modal_state = gr.State(False)
+                    modal_btn = gr.Button(value="ℹ️", elem_id="welcome_btn", elem_classes=["modal_icon"], visible=True)
+
+                    # Welcome modal (hidden by default); will be shown by modal_btn
+                    modal_md = gr.Markdown(welcome_md, elem_id="welcome_modal", visible=False)
+                    modal_close = gr.Button(value="Close", elem_classes=["modal_close_btn"], visible=False)
+                    gr.ChatInterface(
                             fn=self.chat,
                             type="messages",
                             autofocus=False,
@@ -80,6 +87,17 @@ class MainWindow:
                             theme='JohnSmith9982/small_and_pretty',
                             examples=EXAMPLE_QUERIES,
                         )
+                    # Click handlers: show/hide the welcome modal
+                    def toggle_modal(state: bool):
+                        """Toggle visibility for the welcome modal."""
+                        new_state = not state
+                        # show/hide modal and close button using gr.update
+                        return gr.update(visible=new_state), gr.update(visible=new_state), new_state
+
+                    # When modal button clicked, toggle modal visibility
+                    modal_btn.click(toggle_modal, inputs=[modal_state], outputs=[modal_md, modal_close, modal_state])
+                    # Close button hides modal
+                    modal_close.click(lambda state: (gr.update(visible=False), gr.update(visible=False), False), inputs=[modal_state], outputs=[modal_md, modal_close, modal_state])
 
         self.chat_interface = demo
         return demo

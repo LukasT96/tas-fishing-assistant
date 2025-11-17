@@ -39,3 +39,112 @@ border-radius: 12px;
 padding: 12px;
 background: var(--panel-background-fill);
 }
+
+/* Responsive / Mobile styles */
+@media (max-width: 900px) {
+	/* Stack columns vertically on smaller screens */
+	.app_row { flex-direction: column; }
+
+	/* Fill full height on mobile so chat column can stretch to the bottom */
+	.gradio-container { min-height: 100dvh !important; height: 100dvh !important; }
+	.app_row { min-height: 100dvh !important; height: 100dvh !important; }
+
+	/* Let html/body grow and allow native scrolling on mobile */
+	html, body, #root { height: auto !important; }
+	body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+	/* Make both columns full-width */
+	.app_row > .gr-column { min-width: 0; width: 100% !important; }
+
+	/* Make chat column full width */
+	.chat_col { width: 100% !important; min-width: 0 !important; padding: 0 12px !important; }
+	/* Move chat to the front (in case order matters) */
+	.chat_col { order: 1; }
+
+	/* Hide the left sidebar on mobile — show only chat */
+	.app_row .left_col, .app_row .gr-column.left_col, .app_row [class*="left_col"] { display: none !important; visibility: hidden !important; width: 0 !important; padding: 0 !important; margin: 0 !important; }
+
+	/* Extra fallback rules in case markup differs across Gradio versions */
+	.gr-column.left_col, [class*="left_col"] { display: none !important; }
+
+	/* Modal icon for welcome content */
+	.modal_icon, #welcome_btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--panel-background-fill); color: var(--text-color-primary); border: 1px solid var(--border-color-primary); box-shadow: 0 3px 8px rgba(0,0,0,0.25); cursor: pointer; position: fixed; top: 12px; left: 12px; z-index: 99999; }
+
+	/* Modal styling */
+	#welcome_modal { position: fixed; top: 12%; left: 50%; transform: translateX(-50%); width: min(92%, 520px); z-index: 99998; border-radius: 12px; box-shadow: 0 6px 30px rgba(0,0,0,0.4); background: var(--panel-background-fill); padding: 18px; }
+	.modal_close_btn { margin-top: 12px; }
+
+	/* Space and sizing tweaks for chat card */
+	.chat_col { margin-top: 6px; }
+	/* Wider chat card on mobile so the chat appears more full-screen; make it flex to fill height */
+	.chat_card { padding: 8px 8px 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; border-radius: 10px !important; display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; min-height: 0 !important; }
+
+	/* Tighter markdown and example spacing */
+	.gr-markdown { font-size: 15px; line-height: 1.3; }
+	.gr-markdown p { margin-bottom: 8px; }
+
+	/* Make chat area easier to read on mobile */
+	.chat_col .gr-chatbot, .chat_col .chatbot { padding: 6px; }
+	/* Pin the chat to take remaining vertical space; chat messages scroll inside the chat area */
+	.chat_col .gr-chatbot, .chat_col .chatbot { flex: 1 1 auto; max-height: none; overflow: auto; min-height: 0 !important; }
+	.chat_col > .gr-chatinterface, .chat_col > .gr-chat-interface { flex: 1 1 auto; }
+	.gr-chat-interface { padding: 0 6px 6px; }
+
+	/* Keep the chat form visible above the virtual keyboard. */
+	/* Use sticky so it follows the bottom of the viewport when keyboard appears. */
+	.chat_col form { position: sticky !important; bottom: env(safe-area-inset-bottom, 0px); z-index: 9999; background: transparent; }
+
+	/* Add extra bottom padding to message area to avoid being overlapped by the input */
+	.chat_col .gr-chatbot, .chat_col .chatbot { padding-bottom: 92px; }
+
+	/* Reduce padding for input area so it doesn't push content too far up */
+	.chat_col form .gr-row, .chat_col form .gr-input { padding-bottom: 6px; }
+
+	/* Make the chat interface content expand */
+	.chat_col .gr-chat-interface, .chat_col .gr-chatinterface { width: 100% !important; max-width: none !important; }
+	/* Ensure chat interface fills its parent */
+	.chat_card .gr-chat-interface, .chat_card .gr-chatinterface { flex: 1 1 auto; min-height: 0 !important; }
+
+	/* Override theme-wide center/max-width container on mobile */
+	.gradio-container, .gradio-container > .gr-block, .gr-block { max-width: 100% !important; width: 100% !important; padding-left: 6px !important; padding-right: 6px !important; }
+
+	/* Also remove large horizontal padding on the top-level gr-block row */
+	.app_row { padding-left: 0 !important; padding-right: 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
+
+	/* Expand chat message area to the full column (remove theme inner margins) */
+	.gr-chatbot > .messages, .gr-chat-interface > .messages, .gr-chatinterface > .messages { width: 100% !important; }
+
+	/* Make messages wider inside chat (fallback for Gradio messaging classes). */
+	.gr-chatbot .message, .gr-chatbot .message-bubble, .gr-message, .gr-message-bubble { max-width: calc(100% - 12px) !important; }
+
+	/* Buttons and inputs: larger tappable areas */
+	button, .gr-button, input[type="button"], input[type="submit"] { padding: 10px 12px; font-size: 15px; }
+	input[type="text"], textarea { font-size: 15px; }
+}
+
+/* Hide modal icon by default on larger screens */
+.modal_icon { display: none; }
+
+/* Very small phones */
+@media (max-width: 420px) {
+	.gr-markdown { font-size: 14px; }
+	.chat_card { padding: 8px; }
+
+	/* Compact example list */
+	.app_row > .gr-column:first-child { padding: 6px 10px; }
+
+	/* Keep modal icon smaller on very small phones */
+	.modal_icon, #welcome_btn { width: 40px; height: 40px; top: 10px; left: 10px; }
+
+	/* Keep chat messages readable */
+	.chat_col .gr-chatbot, .chat_col .chatbot { padding: 4px; }
+	/* Give more height to the chat area on very small phones and allow internal chat scroll */
+	.chat_col .gr-chatbot, .chat_col .chatbot { max-height: calc(100dvh - 120px); overflow: auto; }
+	.gradio-container, .app_row { min-height: 100dvh !important; height: 100dvh !important; }
+	.gr-chat-interface { padding: 0 4px 4px; }
+
+	/* Fallback: use fixed input on very small screens so keyboard won't hide it */
+	.chat_col form { position: fixed !important; left: 12px !important; right: 12px !important; bottom: env(safe-area-inset-bottom, 6px) !important; z-index: 9999 !important; width: calc(100% - 24px) !important; background: var(--panel-background-fill); border-radius: 10px; padding: 6px 8px 8px !important; }
+	/* Expand message area so its bottom isn't clipped */
+	.chat_col .gr-chatbot, .chat_col .chatbot { padding-bottom: 120px; }
+}
